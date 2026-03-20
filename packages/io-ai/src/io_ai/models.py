@@ -83,7 +83,28 @@ class ModelRegistry:
                 if matches:
                     chosen = matches[0]
                 else:
-                    raise KeyError(f"Unable to resolve model '{model}'")
+                    inferred_provider = provider
+                    remote_id = model
+                    if "/" in model:
+                        maybe_provider, remainder = model.split("/", 1)
+                        if maybe_provider in {"mock", "openai", "openrouter", "anthropic"}:
+                            inferred_provider = maybe_provider
+                            remote_id = remainder
+                    inferred_provider = inferred_provider or "openrouter"
+                    api = "messages" if inferred_provider == "anthropic" else "responses"
+                    if inferred_provider == "mock":
+                        api = "mock"
+                    inferred_base_url = base_url
+                    if inferred_provider == "openrouter" and not inferred_base_url:
+                        inferred_base_url = "https://openrouter.ai/api/v1"
+                    chosen = ModelRef(
+                        id=model if "/" in model else f"{inferred_provider}/{remote_id}",
+                        provider=inferred_provider,
+                        api=api,
+                        remote_id=remote_id,
+                        label=model,
+                        base_url=inferred_base_url,
+                    )
         else:
             chosen = self.default_for(provider)
 
@@ -110,4 +131,3 @@ class ModelRegistry:
                 metadata=dict(chosen.metadata),
             )
         return chosen
-

@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 
+SUPPORTED_PROVIDERS = {"mock", "openai", "openrouter", "anthropic"}
+
+
 @dataclass(slots=True)
 class ResolvedRuntime:
     provider: str | None
@@ -45,5 +48,8 @@ def resolve_runtime(
         )
     )
     base_url = cli_base_url or env.get("IO_BASE_URL") or config.get("model", {}).get("base_url")
+    if provider not in SUPPORTED_PROVIDERS:
+        provider = "openrouter" if env.get("OPENROUTER_API_KEY") or env.get("OPENAI_API_KEY") else "mock"
+        if provider == "mock":
+            model = "mock/io-test"
     return ResolvedRuntime(provider=provider, model=model, base_url=base_url)
-
