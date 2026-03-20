@@ -219,6 +219,23 @@ GATEWAY_KNOWN_COMMANDS: frozenset[str] = frozenset(
 )
 
 
+def gateway_only_slash_completions() -> dict[str, str]:
+    """Slash commands omitted from ``COMMANDS`` because they are ``gateway_only``.
+
+    Shown in the REPL completion menu so users see the full Hermes-style surface.
+    """
+    out: dict[str, str] = {}
+    for cmd in COMMAND_REGISTRY:
+        if not cmd.gateway_only:
+            continue
+        out[f"/{cmd.name}"] = f"{_build_description(cmd)} (messaging gateway)"
+        for alias in cmd.aliases:
+            if alias.replace("-", "_") == cmd.name.replace("-", "_") and alias != cmd.name:
+                continue
+            out[f"/{alias}"] = f"{cmd.description} (alias for /{cmd.name}) (messaging gateway)"
+    return out
+
+
 def gateway_help_lines() -> list[str]:
     """Generate gateway help text lines from the registry."""
     lines: list[str] = []
@@ -280,11 +297,13 @@ class SlashCommandCompleter(Completer):
         self,
         skill_commands_provider: Callable[[], Mapping[str, dict[str, Any]]] | None = None,
         model_completer_provider: Callable[[], dict[str, Any]] | None = None,
+        extra_slash_commands: Mapping[str, str] | None = None,
     ) -> None:
         self._skill_commands_provider = skill_commands_provider
         # model_completer_provider returns {"current_provider": str,
         #   "providers": {id: label, ...}, "models_for": callable(provider) -> list[str]}
         self._model_completer_provider = model_completer_provider
+        self._extra_slash_commands: dict[str, str] = dict(extra_slash_commands or {})
         self._model_info_cache: dict[str, Any] | None = None
         self._model_info_cache_time: float = 0
 
@@ -482,7 +501,20 @@ class SlashCommandCompleter(Completer):
                     display_meta=desc,
                 )
 
+        for cmd, desc in self._extra_slash_commands.items():
+            cmd_name = cmd[1:]
+            if cmd_name.startswith(word):
+                yield Completion(
+                    self._completion_text(cmd_name, word),
+                    start_position=-len(word),
+                    display=cmd,
+                    display_meta=desc,
+                )
+
+        reserved_slash = set(COMMANDS) | set(self._extra_slash_commands)
         for cmd, info in self._iter_skill_commands().items():
+            if cmd in reserved_slash:
+                continue
             cmd_name = cmd[1:]
             if cmd_name.startswith(word):
                 description = str(info.get("description", "Skill command"))
@@ -491,7 +523,7 @@ class SlashCommandCompleter(Completer):
                     self._completion_text(cmd_name, word),
                     start_position=-len(word),
                     display=cmd,
-                    display_meta=f"ΦΦ {short_desc}",
+                    display_meta=f"skill: {short_desc}",
                 )
 
 

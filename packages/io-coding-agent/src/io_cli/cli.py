@@ -8,8 +8,6 @@ import json
 import os
 from pathlib import Path
 import sys
-import time
-from uuid import uuid4
 
 import yaml
 
@@ -23,6 +21,8 @@ from .config import ensure_io_home, get_config_value, load_config, load_env, sav
 from .gateway import GatewayManager
 from .gateway_runner import run_gateway
 from .main import build_theme, format_prompt_result, run_prompt
+from .repl_prompt import build_repl_prompt_extras
+from .repl_slash import handle_repl_slash_command
 from .models import list_models
 from .pairing import pairing_command
 from .skills import discover_skills, inspect_skill, save_skill_toggle, search_skills
@@ -32,27 +32,6 @@ from .toolsets import enabled_tools_for_platform, set_toolset_enabled, toolsets_
 from .tools_config import toolsets_command
 from .tools.registry import get_tool_registry
 from io_agent import resolve_runtime
-
-_DEBUG_LOG_PATH = Path("/Users/ever/Documents/GitHub/io/.cursor/debug-83bc2f.log")
-_DEBUG_SESSION_ID = "83bc2f"
-
-
-def _debug_log(*, run_id: str, hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
-    try:
-        payload = {
-            "sessionId": _DEBUG_SESSION_ID,
-            "id": f"log_{uuid4().hex}",
-            "timestamp": int(time.time() * 1000),
-            "location": location,
-            "message": message,
-            "data": data,
-            "runId": run_id,
-            "hypothesisId": hypothesis_id,
-        }
-        with _DEBUG_LOG_PATH.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
-    except Exception:
-        pass
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -242,26 +221,38 @@ def _run_repl(args: argparse.Namespace) -> int:
             home=home,
         )
     )
+    repl_completer, repl_auto_suggest = build_repl_prompt_extras(home, args.cwd.resolve())
+    ui.console.print(
+        "[dim]Tip: type [bold]/[/] then [bold]Tab[/] for slash commands; "
+        "[bold]/model[/] stages providers→models; [bold]/skill-slug[/] inlines that skill’s SKILL.md for the agent "
+        "(optional text after the slug is the user request).[/]"
+    )
     while True:
         try:
-            prompt = ui.prompt()
+            prompt = ui.prompt(completer=repl_completer, auto_suggest=repl_auto_suggest)
         except (EOFError, KeyboardInterrupt):
             break
         if not prompt.strip():
             continue
         if prompt.strip() in {"/quit", "/exit"}:
             break
-        run_id = f"repl-{uuid4().hex[:10]}"
-        started_ms = int(time.time() * 1000)
-        # region agent log
-        _debug_log(
-            run_id=run_id,
-            hypothesis_id="H1",
-            location="io_cli/cli.py:_run_repl:submit",
-            message="Prompt submitted in REPL",
-            data={"prompt_len": len(prompt), "cwd": str(args.cwd)},
-        )
-        # endregion
+        if prompt.strip().startswith("/"):
+            handled, slash_message = asyncio.run(
+                handle_repl_slash_command(
+                    prompt,
+                    home=home,
+                    cwd=args.cwd,
+                    repl_args=args,
+                    load_extensions=not args.no_extensions,
+                    on_event=None,
+                )
+            )
+            if handled:
+                ui.render_message("assistant", slash_message)
+                continue
+            if slash_message.strip():
+                prompt = slash_message
+
         ui.console.print("[dim]Φ thinking...[/]")
         with ui.console.status("[bold #FFBF00]Φ thinking...[/]") as thinking_status:
             def _on_event(event_type: str, payload: dict[str, object]) -> None:
@@ -281,19 +272,9 @@ def _run_repl(args: argparse.Namespace) -> int:
                     model=args.model,
                     provider=args.provider,
                     load_extensions=not args.no_extensions,
-                    env_overrides={"IO_DEBUG_RUN_ID": run_id},
                     on_event=_on_event,
                 )
             )
-        # region agent log
-        _debug_log(
-            run_id=run_id,
-            hypothesis_id="H4",
-            location="io_cli/cli.py:_run_repl:complete",
-            message="Prompt completed and rendering response",
-            data={"elapsed_ms": int(time.time() * 1000) - started_ms, "response_len": len(result.text or "")},
-        )
-        # endregion
         ui.render_message("assistant", format_prompt_result(result))
     return 0
 

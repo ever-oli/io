@@ -42,6 +42,7 @@ from .gateway_session import (
     SessionSource,
     build_session_context_prompt,
 )
+from .agent.skill_commands import build_skill_invocation_message
 from .main import run_prompt
 from .pairing import PairingStore
 from .session import SessionManager
@@ -49,7 +50,6 @@ from .toolsets import enabled_toolsets_for_platform
 
 
 logger = logging.getLogger(__name__)
-
 
 ADAPTER_TYPES: dict[Platform, type[BasePlatformAdapter]] = {
     Platform.TELEGRAM: TelegramAdapter,
@@ -426,6 +426,64 @@ class GatewayRunner:
             lines.append(f"- {platform_name}: {runtime_state}{suffix}")
         return "\n".join(lines)
 
+    def _collect_message_entries(self, session_file: Path) -> list[dict[str, Any]]:
+        try:
+            session = SessionManager.open(session_file)
+        except Exception:
+            return []
+        entries: list[dict[str, Any]] = []
+        for entry in session.get_branch():
+            if entry.get("type") != "message":
+                continue
+            message = entry.get("message")
+            if isinstance(message, dict):
+                entries.append(entry)
+        return entries
+
+    def _last_user_message_content(self, session_file: Path) -> str | None:
+        for entry in reversed(self._collect_message_entries(session_file)):
+            message = entry.get("message", {})
+            if str(message.get("role", "")) == "user":
+                text = str(message.get("content", "")).strip()
+                if text:
+                    return text
+        return None
+
+    def _undo_last_exchange(self, session_file: Path) -> tuple[bool, str]:
+        try:
+            session = SessionManager.open(session_file)
+        except Exception as exc:
+            return False, f"Unable to open session: {exc}"
+        branch = session.get_branch()
+        message_entries = [entry for entry in branch if entry.get("type") == "message" and isinstance(entry.get("message"), dict)]
+        if not message_entries:
+            return False, "Nothing to undo in this session yet."
+
+        last_assistant_idx = -1
+        for idx in range(len(message_entries) - 1, -1, -1):
+            role = str(message_entries[idx]["message"].get("role", ""))
+            if role == "assistant":
+                last_assistant_idx = idx
+                break
+        if last_assistant_idx <= 0:
+            return False, "No completed user/assistant exchange to undo yet."
+
+        user_idx = -1
+        for idx in range(last_assistant_idx - 1, -1, -1):
+            role = str(message_entries[idx]["message"].get("role", ""))
+            if role == "user":
+                user_idx = idx
+                break
+        if user_idx < 0:
+            return False, "No completed user/assistant exchange to undo yet."
+
+        parent_id = message_entries[user_idx].get("parentId")
+        if parent_id:
+            session.branch(parent_id)
+        else:
+            session.leaf_id = None
+        return True, "Undid the last user/assistant exchange for this chat."
+
     async def _dispatch_gateway_command(
         self,
         event: MessageEvent,
@@ -448,6 +506,18 @@ class GatewayRunner:
             return True
         command = resolve_command(raw_name)
         if command is None:
+            cwd = self._resolve_gateway_cwd()
+            plat = event.source.platform.value
+            expanded = build_skill_invocation_message(
+                f"/{raw_name}",
+                user_instruction=arguments,
+                home=self.home,
+                cwd=cwd,
+                platform=plat,
+            )
+            if expanded:
+                event.text = expanded
+                return False
             await self._send_platform_message(
                 event.source.platform,
                 event.source.chat_id,
@@ -550,6 +620,75 @@ class GatewayRunner:
             )
             return True
 
+        if canonical == "reasoning":
+            config, runtime = self._resolve_runtime_state()
+            model_cfg = config.setdefault("model", {})
+            display_cfg = config.setdefault("display", {})
+            effort_values = {"none", "minimal", "low", "medium", "high", "xhigh"}
+            flag_values = {"on", "show", "off", "hide"}
+            selected = arguments.strip().lower()
+            if selected:
+                if selected in effort_values:
+                    model_cfg["reasoning_effort"] = selected
+                    save_config(config, self.home)
+                    await self._send_platform_message(
+                        source.platform,
+                        source.chat_id,
+                        f"Reasoning effort set to {selected}.",
+                        thread_id=source.thread_id,
+                    )
+                    return True
+                if selected in flag_values:
+                    show = selected in {"on", "show"}
+                    display_cfg["show_reasoning"] = show
+                    save_config(config, self.home)
+                    await self._send_platform_message(
+                        source.platform,
+                        source.chat_id,
+                        "Reasoning display is now visible." if show else "Reasoning display is now hidden.",
+                        thread_id=source.thread_id,
+                    )
+                    return True
+                await self._send_platform_message(
+                    source.platform,
+                    source.chat_id,
+                    "Usage: /reasoning [none|minimal|low|medium|high|xhigh|show|hide|on|off]",
+                    thread_id=source.thread_id,
+                )
+                return True
+            effort = str(model_cfg.get("reasoning_effort", "(default)"))
+            show = bool(display_cfg.get("show_reasoning", False))
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                f"Reasoning effort: {effort}\nReasoning display: {'visible' if show else 'hidden'}\nModel: {runtime.model}",
+                thread_id=source.thread_id,
+            )
+            return True
+
+        if canonical == "personality":
+            config, _runtime = self._resolve_runtime_state()
+            display_cfg = config.setdefault("display", {})
+            selected = arguments.strip()
+            if selected:
+                display_cfg["personality"] = selected
+                save_config(config, self.home)
+                await self._send_platform_message(
+                    source.platform,
+                    source.chat_id,
+                    f"Personality set to {selected}.",
+                    thread_id=source.thread_id,
+                )
+                return True
+            current = str(display_cfg.get("personality", "operator"))
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                f"Current personality: {current}",
+                thread_id=source.thread_id,
+            )
+            return True
+
         if canonical == "model":
             if arguments:
                 selected = arguments.strip()
@@ -592,6 +731,84 @@ class GatewayRunner:
                 payload,
                 thread_id=source.thread_id,
             )
+            return True
+
+        if canonical == "undo":
+            if session_file is None:
+                await self._send_platform_message(
+                    source.platform,
+                    source.chat_id,
+                    "No active session file for this chat yet.",
+                    thread_id=source.thread_id,
+                )
+                return True
+            ok, message = self._undo_last_exchange(session_file)
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                message,
+                thread_id=source.thread_id,
+            )
+            return True
+
+        if canonical == "retry":
+            if session_file is None:
+                await self._send_platform_message(
+                    source.platform,
+                    source.chat_id,
+                    "No active session file for this chat yet.",
+                    thread_id=source.thread_id,
+                )
+                return True
+            prompt = self._last_user_message_content(session_file)
+            if not prompt:
+                await self._send_platform_message(
+                    source.platform,
+                    source.chat_id,
+                    "No previous user message available to retry.",
+                    thread_id=source.thread_id,
+                )
+                return True
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                "Retrying the last user message...",
+                thread_id=source.thread_id,
+            )
+            runtime_config = load_config(self.home)
+            redact_pii = bool(runtime_config.get("privacy", {}).get("redact_pii", False))
+            system_prompt_suffix = build_session_context_prompt(context, redact_pii=redact_pii) if context else ""
+            toolsets = self._resolve_toolsets(source.platform)
+            env_overrides = self._build_session_env(context, session_file) if context else {}
+            cwd = self._resolve_gateway_cwd()
+            try:
+                result = await run_prompt(
+                    prompt,
+                    cwd=cwd,
+                    home=self.home,
+                    session_path=session_file,
+                    toolsets=toolsets,
+                    system_prompt_suffix=system_prompt_suffix,
+                    env_overrides=env_overrides,
+                )
+                if context is not None:
+                    self._record_session_usage(context, result=result)
+                response = result.text.strip() or "(no response)"
+                await self._send_platform_message(
+                    source.platform,
+                    source.chat_id,
+                    response,
+                    thread_id=source.thread_id,
+                    metadata={"session_path": str(result.session_path)},
+                )
+            except Exception as exc:
+                logger.exception("Gateway retry handling failed")
+                await self._send_platform_message(
+                    source.platform,
+                    source.chat_id,
+                    f"IO hit an error while retrying that message:\n{exc}",
+                    thread_id=source.thread_id,
+                )
             return True
 
         if raw_name in GATEWAY_KNOWN_COMMANDS:
@@ -647,7 +864,10 @@ class GatewayRunner:
 
         cwd = self._resolve_gateway_cwd()
         session_file = self._ensure_gateway_session_file(context, cwd)
-        if text.startswith("/") and await self._dispatch_gateway_command(event, context=context, session_file=session_file):
+        command_handled = False
+        if text.startswith("/"):
+            command_handled = await self._dispatch_gateway_command(event, context=context, session_file=session_file)
+        if command_handled:
             return
         runtime_config = load_config(self.home)
         redact_pii = bool(runtime_config.get("privacy", {}).get("redact_pii", False))

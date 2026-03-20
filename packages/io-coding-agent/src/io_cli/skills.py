@@ -35,13 +35,17 @@ def _parse_skill_file(path: Path) -> tuple[str, str]:
 
     match = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", content, re.DOTALL)
     body = content
+    name_from_frontmatter = False
     if match:
         try:
             frontmatter = yaml.safe_load(match.group(1)) or {}
         except yaml.YAMLError:
             frontmatter = {}
         if isinstance(frontmatter, dict):
-            title = str(frontmatter.get("name") or title).strip() or title
+            fm_name = frontmatter.get("name")
+            if fm_name is not None and str(fm_name).strip():
+                title = str(fm_name).strip()
+                name_from_frontmatter = True
             description = str(frontmatter.get("description") or "").strip()
         body = match.group(2)
 
@@ -53,9 +57,10 @@ def _parse_skill_file(path: Path) -> tuple[str, str]:
         if not line:
             continue
         if line.startswith("#"):
-            heading = line.lstrip("#").strip()
-            if heading:
-                title = heading
+            if not name_from_frontmatter:
+                heading = line.lstrip("#").strip()
+                if heading:
+                    title = heading
             continue
         description = line
         break
@@ -104,6 +109,34 @@ def set_skill_enabled(
         config["skills"].setdefault("platform_disabled", {})
         config["skills"]["platform_disabled"][platform] = sorted(disabled)
     return config
+
+
+def skill_command_slug(name: str) -> str:
+    """Stable slash-token for a skill (Hermes-style: lowercase, hyphenated)."""
+    s = name.lower().strip()
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s or "skill"
+
+
+def skill_slash_command_map(
+    *,
+    home: Path | None = None,
+    cwd: Path | None = None,
+    platform: str | None = "cli",
+) -> dict[str, dict[str, Any]]:
+    """Map ``/slug`` -> metadata for REPL / gateway slash completion menus."""
+    out: dict[str, dict[str, Any]] = {}
+    for skill in discover_skills(home=home, cwd=cwd, platform=platform):
+        if not skill.enabled:
+            continue
+        slug = skill_command_slug(skill.name)
+        key = f"/{slug}"
+        out[key] = {
+            "description": skill.description or f"Skill: {skill.name}",
+            "skill_name": skill.name,
+            "path": str(skill.path),
+        }
+    return out
 
 
 def discover_skills(*, home: Path | None = None, cwd: Path | None = None, platform: str | None = None) -> list[SkillInfo]:

@@ -14,6 +14,7 @@ from io_cli.gateway_platforms.telegram import TelegramAdapter
 from io_cli.gateway_runner import GatewayRunner
 from io_cli.gateway_session import SessionSource
 from io_cli.main import PromptResult
+from io_cli.session import SessionManager
 
 
 def test_gateway_setup_persists_telegram_token(tmp_path: Path) -> None:
@@ -451,3 +452,100 @@ def test_gateway_runner_delivers_due_cron_job_to_telegram_home_channel(tmp_path:
     delivery = result["results"][0]["delivery"]
     assert delivery["telegram:ops-room"]["success"] is True
     assert delivery["local"]["success"] is True
+
+
+def test_gateway_runner_handles_reasoning_personality_retry_undo(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("IO_TELEGRAM_ALLOW_ALL_USERS", "1")
+
+    class FakeTelegramAdapter(BasePlatformAdapter):
+        def __init__(self) -> None:
+            super().__init__(platform=Platform.TELEGRAM, config=PlatformConfig(enabled=True, token="test"))
+            self.sent: list[dict[str, str | None]] = []
+            self._calls = 0
+
+        async def _start(self) -> None:
+            return None
+
+        async def _stop(self) -> None:
+            return None
+
+        async def poll_once(self, *, timeout: float = 0.0) -> list[MessageEvent]:
+            del timeout
+            source = SessionSource(
+                platform=Platform.TELEGRAM,
+                chat_id="456",
+                chat_name="Ops",
+                chat_type="dm",
+                user_id="111",
+                user_name="ever",
+            )
+            if self._calls == 0:
+                self._calls += 1
+                return [
+                    MessageEvent(source=source, text="hello there", message_type=MessageType.TEXT, message_id="m1"),
+                    MessageEvent(source=source, text="/reasoning high", message_type=MessageType.COMMAND, message_id="c1"),
+                    MessageEvent(source=source, text="/personality pirate", message_type=MessageType.COMMAND, message_id="c2"),
+                    MessageEvent(source=source, text="/retry", message_type=MessageType.COMMAND, message_id="c3"),
+                    MessageEvent(source=source, text="/undo", message_type=MessageType.COMMAND, message_id="c4"),
+                ]
+            return []
+
+        async def send_message(
+            self,
+            chat_id: str,
+            content: str,
+            *,
+            thread_id: str | None = None,
+            metadata: dict | None = None,
+        ) -> dict:
+            self.sent.append(
+                {
+                    "chat_id": chat_id,
+                    "content": content,
+                    "thread_id": thread_id,
+                    "metadata": str(metadata or {}),
+                }
+            )
+            return {"ok": True}
+
+    fake_adapter = FakeTelegramAdapter()
+    manager = GatewayManager(home=tmp_path / "home")
+    manager.configure(platforms=["telegram"], home_channel="ops-room", token="123:test")
+
+    monkeypatch.setattr(
+        GatewayRunner,
+        "_build_adapter_map",
+        lambda self, config: {Platform.TELEGRAM: fake_adapter},
+    )
+
+    calls: list[str] = []
+
+    async def fake_run_prompt(prompt: str, **kwargs):
+        calls.append(prompt)
+        session_path = kwargs["session_path"]
+        session = SessionManager.open(session_path)
+        session.append_message({"role": "user", "content": prompt})
+        session.append_message({"role": "assistant", "content": "ok"})
+        return PromptResult(
+            text="ok",
+            model="mock/io-test",
+            provider="mock",
+            session_path=session_path,
+            messages=[],
+            loaded_extensions=[],
+            usage=Usage(input_tokens=3, output_tokens=2),
+        )
+
+    monkeypatch.setattr("io_cli.gateway_runner.run_prompt", fake_run_prompt)
+
+    result = GatewayRunner(home=manager.home, poll_interval=0.1, max_loops=2).run_sync(once=False)
+
+    assert result["messages_processed"] == 0
+    config = load_config(manager.home)
+    assert config["model"]["reasoning_effort"] == "high"
+    assert config["display"]["personality"] == "pirate"
+    assert any("Reasoning effort set to high." in item["content"] for item in fake_adapter.sent)
+    assert any("Personality set to pirate." in item["content"] for item in fake_adapter.sent)
+    assert any("Undid the last user/assistant exchange" in item["content"] for item in fake_adapter.sent)
+    assert any("Retrying the last user message..." in item["content"] for item in fake_adapter.sent)
+    assert calls.count("hello there") == 2

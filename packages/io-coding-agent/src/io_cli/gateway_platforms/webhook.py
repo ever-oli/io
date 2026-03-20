@@ -25,6 +25,7 @@ import logging
 import re
 import subprocess
 import time
+from pathlib import Path
 from typing import Any
 
 try:
@@ -35,6 +36,7 @@ except ImportError:
     AIOHTTP_AVAILABLE = False
     web = None  # type: ignore[assignment]
 
+from ..config import ensure_io_home
 from ..gateway_models import Platform, PlatformConfig
 from .base import BasePlatformAdapter, MessageEvent, MessageType, SendResult
 
@@ -182,16 +184,26 @@ class WebhookAdapter(BasePlatformAdapter):
         skills = route_config.get("skills", [])
         if isinstance(skills, list) and skills:
             try:
-                from io_cli.agent.skill_commands import build_skill_invocation_message, get_skill_commands
+                from io_cli.agent.skill_commands import build_skill_invocation_message
 
-                skill_cmds = get_skill_commands()
+                home = ensure_io_home(None)
+                cwd = (
+                    self.gateway_runner._resolve_gateway_cwd()
+                    if getattr(self, "gateway_runner", None) is not None
+                    else Path.cwd()
+                )
                 for skill_name in skills:
-                    cmd_key = f"/{skill_name}"
-                    if cmd_key in skill_cmds:
-                        skill_content = build_skill_invocation_message(cmd_key, user_instruction=prompt)
-                        if skill_content:
-                            prompt = skill_content
-                            break
+                    token = str(skill_name).strip()
+                    skill_content = build_skill_invocation_message(
+                        token if token.startswith("/") else f"/{token}",
+                        user_instruction=prompt,
+                        home=home,
+                        cwd=cwd,
+                        platform="webhook",
+                    )
+                    if skill_content:
+                        prompt = skill_content
+                        break
             except Exception as exc:
                 logger.warning("[webhook] Skill loading failed: %s", exc)
 

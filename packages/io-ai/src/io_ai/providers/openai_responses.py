@@ -3,36 +3,13 @@
 from __future__ import annotations
 
 import json
-import time
 from typing import Any
-from uuid import uuid4
 
 import httpx
 
 from io_ai.types import AssistantResponse, CompletionRequest, ToolCall, Usage
 
 from .base import Provider
-
-_DEBUG_LOG_PATH = "/Users/ever/Documents/GitHub/io/.cursor/debug-83bc2f.log"
-_DEBUG_SESSION_ID = "83bc2f"
-
-
-def _debug_log(*, run_id: str, hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
-    try:
-        payload = {
-            "sessionId": _DEBUG_SESSION_ID,
-            "id": f"log_{uuid4().hex}",
-            "timestamp": int(time.time() * 1000),
-            "location": location,
-            "message": message,
-            "data": data,
-            "runId": run_id,
-            "hypothesisId": hypothesis_id,
-        }
-        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
-    except Exception:
-        pass
 
 
 def _message_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -68,7 +45,6 @@ class OpenAIResponsesProvider(Provider):
     name = "openai"
 
     async def complete(self, request: CompletionRequest) -> AssistantResponse:
-        run_id = str((request.settings or {}).get("io_debug_run_id") or f"provider-{uuid4().hex[:10]}")
         base_url = request.model.base_url or request.settings.get("base_url") or "https://api.openai.com/v1"
         headers = {"Content-Type": "application/json", **request.headers}
         body: dict[str, Any] = {
@@ -120,17 +96,6 @@ class OpenAIResponsesProvider(Provider):
                         normalized_arguments = {}
                 else:
                     normalized_arguments = {}
-                _debug_log(
-                    run_id=run_id,
-                    hypothesis_id="H6",
-                    location="io_ai/providers/openai_responses.py:tool_call_parse",
-                    message="Parsed function_call arguments payload",
-                    data={
-                        "name": str(item.get("name", "")),
-                        "arguments_type": type(raw_arguments).__name__,
-                        "arguments_preview": str(raw_arguments)[:220],
-                    },
-                )
                 tool_calls.append(
                     ToolCall(
                         id=item.get("call_id", item.get("id", "call")),
