@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from uuid import uuid4
 
 from io_agent import Agent, ContextCompressor, SessionDB, resolve_runtime
 from io_ai.types import Usage
@@ -17,6 +19,27 @@ from .session import SessionManager
 from .skin_engine import SkinEngine
 from .toolsets import build_toolset_resolver
 from .tools import get_tool_registry
+
+_DEBUG_LOG_PATH = Path("/Users/ever/Documents/GitHub/io/.cursor/debug-83bc2f.log")
+_DEBUG_SESSION_ID = "83bc2f"
+
+
+def _debug_log(*, run_id: str, hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
+    try:
+        payload = {
+            "sessionId": _DEBUG_SESSION_ID,
+            "id": f"log_{uuid4().hex}",
+            "timestamp": int(time.time() * 1000),
+            "location": location,
+            "message": message,
+            "data": data,
+            "runId": run_id,
+            "hypothesisId": hypothesis_id,
+        }
+        with _DEBUG_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
+    except Exception:
+        pass
 
 
 @dataclass(slots=True)
@@ -63,7 +86,19 @@ async def run_prompt(
     system_prompt_suffix: str | None = None,
     env_overrides: dict[str, str] | None = None,
     session_source: str = "cli",
+    on_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> PromptResult:
+    run_id = str((env_overrides or {}).get("IO_DEBUG_RUN_ID") or f"run-{uuid4().hex[:10]}")
+    started_ms = int(time.time() * 1000)
+    # region agent log
+    _debug_log(
+        run_id=run_id,
+        hypothesis_id="H2",
+        location="io_cli/main.py:run_prompt:entry",
+        message="run_prompt entered",
+        data={"has_extensions": load_extensions, "has_session_path": bool(session_path), "session_source": session_source},
+    )
+    # endregion
     cwd = (cwd or Path.cwd()).resolve()
     home = ensure_io_home(home)
     config = load_config(home)
@@ -161,7 +196,17 @@ async def run_prompt(
         session_db=session_db,
         history=initial_messages,
         env=env,
+        on_event=on_event,
     )
+    # region agent log
+    _debug_log(
+        run_id=run_id,
+        hypothesis_id="H2",
+        location="io_cli/main.py:run_prompt:agent_complete",
+        message="agent.run completed",
+        data={"elapsed_ms": int(time.time() * 1000) - started_ms, "messages_count": len(result.messages)},
+    )
+    # endregion
 
     new_messages = result.messages[baseline:]
     for message in new_messages:

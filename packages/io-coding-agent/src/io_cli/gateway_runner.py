@@ -18,7 +18,24 @@ from .cron import CronManager
 from .gateway import GatewayManager
 from .gateway_delivery import DeliveryRouter
 from .gateway_models import GatewayConfig, HomeChannel, Platform, PlatformConfig
-from .gateway_platforms import BasePlatformAdapter, MessageEvent, MessageType, TelegramAdapter
+from .gateway_platforms import (
+    APIServerAdapter,
+    BasePlatformAdapter,
+    DingTalkAdapter,
+    DiscordAdapter,
+    EmailAdapter,
+    HomeAssistantAdapter,
+    MatrixAdapter,
+    MattermostAdapter,
+    MessageEvent,
+    MessageType,
+    SignalAdapter,
+    SlackAdapter,
+    SmsAdapter,
+    TelegramAdapter,
+    WebhookAdapter,
+    WhatsAppAdapter,
+)
 from .gateway_runtime import remove_pid_file, write_pid_file, write_runtime_status
 from .gateway_session import (
     SessionContext,
@@ -32,6 +49,23 @@ from .toolsets import enabled_toolsets_for_platform
 
 
 logger = logging.getLogger(__name__)
+
+
+ADAPTER_TYPES: dict[Platform, type[BasePlatformAdapter]] = {
+    Platform.TELEGRAM: TelegramAdapter,
+    Platform.DISCORD: DiscordAdapter,
+    Platform.WHATSAPP: WhatsAppAdapter,
+    Platform.SLACK: SlackAdapter,
+    Platform.SIGNAL: SignalAdapter,
+    Platform.MATTERMOST: MattermostAdapter,
+    Platform.MATRIX: MatrixAdapter,
+    Platform.HOMEASSISTANT: HomeAssistantAdapter,
+    Platform.EMAIL: EmailAdapter,
+    Platform.SMS: SmsAdapter,
+    Platform.DINGTALK: DingTalkAdapter,
+    Platform.API_SERVER: APIServerAdapter,
+    Platform.WEBHOOK: WebhookAdapter,
+}
 
 
 class GatewayRunner:
@@ -69,9 +103,16 @@ class GatewayRunner:
 
     def _build_adapter_map(self, config: GatewayConfig) -> dict[Platform, BasePlatformAdapter]:
         adapters: dict[Platform, BasePlatformAdapter] = {}
-        telegram = config.platforms.get(Platform.TELEGRAM)
-        if telegram and telegram.enabled:
-            adapters[Platform.TELEGRAM] = TelegramAdapter(telegram)
+        for platform, platform_config in config.platforms.items():
+            if platform == Platform.LOCAL or not platform_config.enabled:
+                continue
+            adapter_type = ADAPTER_TYPES.get(platform)
+            if adapter_type is None:
+                continue
+            adapter = adapter_type(platform_config)
+            if hasattr(adapter, "gateway_runner"):
+                setattr(adapter, "gateway_runner", self)
+            adapters[platform] = adapter
         return adapters
 
     def _desired_state(self) -> str:
@@ -159,7 +200,7 @@ class GatewayRunner:
         return values
 
     def _is_user_authorized(self, source: SessionSource) -> bool:
-        if source.platform == Platform.HOMEASSISTANT:
+        if source.platform in {Platform.HOMEASSISTANT, Platform.WEBHOOK}:
             return True
         user_id = str(source.user_id or "").strip()
         if not user_id:
@@ -269,15 +310,25 @@ class GatewayRunner:
     def _build_event_prompt(self, event: MessageEvent) -> str:
         prompt = event.text.strip() or "(no text)"
         notes: list[str] = []
-        if event.message_type == MessageType.IMAGE:
-            notes.append("The user sent an image via Telegram.")
+        platform_label = event.source.platform.value.replace("-", " ").title()
+        if event.message_type in {MessageType.IMAGE, MessageType.PHOTO}:
+            notes.append(f"The user sent an image via {platform_label}.")
         elif event.message_type == MessageType.AUDIO:
-            notes.append("The user sent audio via Telegram.")
+            notes.append(f"The user sent audio via {platform_label}.")
+        elif event.message_type == MessageType.VOICE:
+            notes.append(f"The user sent a voice note via {platform_label}.")
+        elif event.message_type == MessageType.VIDEO:
+            notes.append(f"The user sent a video via {platform_label}.")
         elif event.message_type == MessageType.DOCUMENT:
-            notes.append("The user sent a document via Telegram.")
-        if event.attachments:
-            notes.extend(["Telegram attachments:"])
-            notes.extend(f"- {item}" for item in event.attachments)
+            notes.append(f"The user sent a document via {platform_label}.")
+        elif event.message_type == MessageType.STICKER:
+            notes.append(f"The user sent a sticker via {platform_label}.")
+        attachments = list(event.attachments)
+        if event.media_urls:
+            attachments.extend(path for path in event.media_urls if path not in attachments)
+        if attachments:
+            notes.extend([f"{platform_label} attachments:"])
+            notes.extend(f"- {item}" for item in attachments)
         if not notes:
             return prompt
         return f"{prompt}\n\n" + "\n".join(notes)
@@ -547,7 +598,7 @@ class GatewayRunner:
             await self._send_platform_message(
                 source.platform,
                 source.chat_id,
-                f"/{command.name} is recognized but not ported in the IO gateway yet.",
+                f"/{command.name} is available in the local IO CLI. Use /help for gateway-supported commands.",
                 thread_id=source.thread_id,
             )
             return True
@@ -673,8 +724,8 @@ class GatewayRunner:
                 self.home,
                 platform=platform.value,
                 platform_state="unavailable",
-                error_code="not_implemented",
-                error_message="Platform adapter is not ported yet.",
+                error_code="adapter_unavailable",
+                error_message="Platform adapter is unavailable in the current environment.",
             )
 
         write_runtime_status(self.home, gateway_state="running", exit_reason=None)

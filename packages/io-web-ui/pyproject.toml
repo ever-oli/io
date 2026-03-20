@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115.12",
   "io-ai",
+  "io-coding-agent",
   "io-tui",
   "uvicorn>=0.34.0",
 ]
@@ -16,4 +17,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/io_web_ui"]
-

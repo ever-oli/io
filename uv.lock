@@ -269,6 +269,7 @@ source = { editable = "packages/io-web-ui" }
 dependencies = [
     { name = "fastapi" },
     { name = "io-ai" },
+    { name = "io-coding-agent" },
     { name = "io-tui" },
     { name = "uvicorn" },
 ]
@@ -277,6 +278,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.12" },
     { name = "io-ai", editable = "packages/io-ai" },
+    { name = "io-coding-agent", editable = "packages/io-coding-agent" },
     { name = "io-tui", editable = "packages/io-tui" },
     { name = "uvicorn", specifier = ">=0.34.0" },
 ]

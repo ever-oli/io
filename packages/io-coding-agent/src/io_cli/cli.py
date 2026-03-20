@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
+from uuid import uuid4
 
 import yaml
 
@@ -30,6 +32,27 @@ from .toolsets import enabled_tools_for_platform, set_toolset_enabled, toolsets_
 from .tools_config import toolsets_command
 from .tools.registry import get_tool_registry
 from io_agent import resolve_runtime
+
+_DEBUG_LOG_PATH = Path("/Users/ever/Documents/GitHub/io/.cursor/debug-83bc2f.log")
+_DEBUG_SESSION_ID = "83bc2f"
+
+
+def _debug_log(*, run_id: str, hypothesis_id: str, location: str, message: str, data: dict[str, object]) -> None:
+    try:
+        payload = {
+            "sessionId": _DEBUG_SESSION_ID,
+            "id": f"log_{uuid4().hex}",
+            "timestamp": int(time.time() * 1000),
+            "location": location,
+            "message": message,
+            "data": data,
+            "runId": run_id,
+            "hypothesisId": hypothesis_id,
+        }
+        with _DEBUG_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
+    except Exception:
+        pass
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -228,15 +251,49 @@ def _run_repl(args: argparse.Namespace) -> int:
             continue
         if prompt.strip() in {"/quit", "/exit"}:
             break
-        result = asyncio.run(
-            run_prompt(
-                prompt,
-                cwd=args.cwd,
-                model=args.model,
-                provider=args.provider,
-                load_extensions=not args.no_extensions,
-            )
+        run_id = f"repl-{uuid4().hex[:10]}"
+        started_ms = int(time.time() * 1000)
+        # region agent log
+        _debug_log(
+            run_id=run_id,
+            hypothesis_id="H1",
+            location="io_cli/cli.py:_run_repl:submit",
+            message="Prompt submitted in REPL",
+            data={"prompt_len": len(prompt), "cwd": str(args.cwd)},
         )
+        # endregion
+        ui.console.print("[dim]Φ thinking...[/]")
+        with ui.console.status("[bold #FFBF00]Φ thinking...[/]") as thinking_status:
+            def _on_event(event_type: str, payload: dict[str, object]) -> None:
+                if event_type == "turn_start":
+                    iteration = int(payload.get("iteration", 0))
+                    thinking_status.update(f"[bold #FFBF00]Φ thinking...[/] [dim]turn {iteration}[/]")
+                elif event_type == "tool_call_start":
+                    tool = str(payload.get("tool", "tool"))
+                    thinking_status.update(f"[bold #FFBF00]Φ working[/] [dim]running {tool}...[/]")
+                elif event_type == "tool_call_end":
+                    tool = str(payload.get("tool", "tool"))
+                    thinking_status.update(f"[bold #FFBF00]Φ thinking...[/] [dim]finished {tool}[/]")
+            result = asyncio.run(
+                run_prompt(
+                    prompt,
+                    cwd=args.cwd,
+                    model=args.model,
+                    provider=args.provider,
+                    load_extensions=not args.no_extensions,
+                    env_overrides={"IO_DEBUG_RUN_ID": run_id},
+                    on_event=_on_event,
+                )
+            )
+        # region agent log
+        _debug_log(
+            run_id=run_id,
+            hypothesis_id="H4",
+            location="io_cli/cli.py:_run_repl:complete",
+            message="Prompt completed and rendering response",
+            data={"elapsed_ms": int(time.time() * 1000) - started_ms, "response_len": len(result.text or "")},
+        )
+        # endregion
         ui.render_message("assistant", format_prompt_result(result))
     return 0
 

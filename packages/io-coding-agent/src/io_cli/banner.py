@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import subprocess
 import threading
 import time
@@ -135,6 +136,7 @@ def build_welcome_banner(
     skin = get_active_skin(home=home)
     update = get_update_result(timeout=0.05)
     skill_count, skill_names = _skills_summary(home, cwd)
+    terminal_columns = shutil.get_terminal_size((120, 24)).columns
 
     info = Table.grid(padding=(0, 1))
     info.add_column(style=skin.get_color("banner_accent", "#FFBF00"))
@@ -156,14 +158,24 @@ def build_welcome_banner(
     if update is not None:
         info.add_row("Updates", "up to date" if update == 0 else f"{update} commit(s) behind")
 
-    body = Group(
-        Text.from_markup(skin.banner_logo or IO_AGENT_LOGO),
-        Text.from_markup(skin.banner_hero or IO_PHI_HERO),
-        info,
-    )
+    hero = Text.from_markup((skin.banner_hero or IO_PHI_HERO).lstrip("\n"))
+    logo_markup = (skin.banner_logo or IO_AGENT_LOGO).lstrip("\n")
+    logo = Text.from_markup("         " + logo_markup.replace("\n", "\n         "))
+    if terminal_columns >= 95:
+        # Keep both blocks on one row, but avoid full-width expansion so
+        # the gap between hero and logo stays tight and predictable.
+        art_row = Table.grid(expand=False, padding=(0, 2))
+        art_row.add_column(justify="left")
+        art_row.add_column(justify="left")
+        art_row.add_row(hero, logo)
+        art = Group(art_row)
+    else:
+        art = Group(hero)
+    body = Group(art, info)
     return Panel(
         body,
         title=skin.get_branding("agent_name", "IO Agent"),
         subtitle=skin.get_branding("welcome", "Welcome to IO"),
         border_style=skin.get_color("banner_border", "#CD7F32"),
+        padding=(0, 0),
     )

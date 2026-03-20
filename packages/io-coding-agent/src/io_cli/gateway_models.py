@@ -40,6 +40,7 @@ class Platform(Enum):
     SMS = "sms"
     DINGTALK = "dingtalk"
     API_SERVER = "api-server"
+    WEBHOOK = "webhook"
 
 
 @dataclass(slots=True)

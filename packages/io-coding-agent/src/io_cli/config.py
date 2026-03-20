@@ -123,6 +123,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "sms": ["io-sms"],
         "homeassistant": ["io-homeassistant"],
         "dingtalk": ["io-dingtalk"],
+        "webhook": ["io-cli"],
     },
     "custom_providers": [],
 }

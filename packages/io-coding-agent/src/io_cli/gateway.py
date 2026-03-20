@@ -204,5 +204,5 @@ class GatewayManager:
             "runtime_available": bool(runtime["running"]),
             "runtime": runtime,
             "implemented": True,
-            "message": "Gateway runtime is active for Telegram and local delivery; additional platform adapters are still being ported.",
+            "message": "Gateway runtime uses the shared IO multi-platform adapter stack.",
         }
