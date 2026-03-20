@@ -1,0 +1,18 @@
+[project]
+name = "io-pods"
+version = "0.1.0"
+description = "GPU pod and vLLM management for IO"
+requires-python = ">=3.11"
+dependencies = [
+  "io-agent-core",
+]
+
+[project.scripts]
+io-pods = "io_pods.main:main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/io_pods"]

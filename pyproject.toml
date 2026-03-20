@@ -6,11 +6,14 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "io-coding-agent",
+  "io-web-ui",
+  "io-pods",
 ]
 
 [project.scripts]
 io = "io_cli.cli:main"
 io-acp = "io_cli.acp_adapter.entry:main"
+io-pods = "io_pods.main:main"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
@@ -25,6 +28,8 @@ members = [
   "packages/io-agent-core",
   "packages/io-tui",
   "packages/io-coding-agent",
+  "packages/io-web-ui",
+  "packages/io-pods",
 ]
 
 [tool.uv.sources]
@@ -32,6 +37,8 @@ io-ai = { workspace = true }
 io-agent-core = { workspace = true }
 io-tui = { workspace = true }
 io-coding-agent = { workspace = true }
+io-web-ui = { workspace = true }
+io-pods = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -51,6 +58,8 @@ pythonpath = [
   "packages/io-agent-core/src",
   "packages/io-tui/src",
   "packages/io-coding-agent/src",
+  "packages/io-web-ui/src",
+  "packages/io-pods/src",
   "src",
 ]
 
