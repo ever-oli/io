@@ -15,17 +15,12 @@ Current milestone: `0.1.1` (gateway parity + improved CLI progress feedback).
 - `io-agent-core`: agent loop, tools, events, and session index
 - `io-tui`: generic prompt_toolkit and Rich terminal components
 - `io-coding-agent`: CLI, session manager, extensions, and built-in tools
-- `io-web-ui`: FastAPI web runtime and browser chat surface
-- `io-mom`: Slack/workspace runtime wrapper
-- `io-pods`: persisted local pod lifecycle and vLLM management
 
 ## Repo Layout
 
 - `packages/`: runtime packages
 - `skills/` and `optional-skills/`: bundled skill content
 - `docs/`: operator and developer docs
-- `website/` and `landingpage/`: browser-facing assets
-- `assets/`: shared branding and static resources
 - `scripts/`: repo automation
 - `environments/`: tool/runtime environment definitions
 
