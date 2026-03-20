@@ -1,7 +1,11 @@
+<p align="center">
+  <img src="github_banner.png" alt="IO" width="100%" />
+</p>
+
 # IO
 
 IO is a clean-room Python rewrite of the IO operating model, organized around
-the seven core package boundaries lifted from pi-mono. The runtime and repo layout
+the core package boundaries lifted from pi-mono. The runtime and repo layout
 are being expanded toward IO parity while keeping IO branding and package-native
 Python internals.
 
