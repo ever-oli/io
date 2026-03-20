@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "name": "io-agent",
+  "display_name": "IO",
+  "description": "AI agent by Most Wanted Research with editor ACP integration, tool use, and multi-platform runtime support",
+  "icon": "icon.svg",
+  "distribution": {
+    "type": "command",
+    "command": "io",
+    "args": ["acp"]
+  }
+}

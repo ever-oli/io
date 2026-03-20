@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 io = "io_cli.cli:main"
+io-acp = "io_cli.acp_adapter.entry:main"
 mom = "io_mom.main:main"
 io-pods = "io_pods.main:main"
 

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from io_agent import Agent, ContextCompressor, SessionDB, resolve_runtime
+from io_ai.types import Usage
 
 from .config import ensure_io_home, load_config, load_env, load_soul, memory_snapshot
 from .extensions import ExtensionRunner
@@ -26,10 +27,26 @@ class PromptResult:
     session_path: Path
     messages: list[dict[str, Any]]
     loaded_extensions: list[str]
+    usage: Usage = field(default_factory=Usage)
 
 
 def _default_approval_callback(_tool_name: str, _arguments: dict[str, Any], _reason: str) -> bool:
     return os.getenv("IO_AUTO_APPROVE_DANGEROUS", "0") == "1"
+
+
+def _build_compressor(config: dict[str, Any]) -> ContextCompressor:
+    compression = dict(config.get("compression", {}))
+    if "threshold" in compression and "threshold_messages" not in compression:
+        threshold = compression.get("threshold")
+        if isinstance(threshold, (int, float)) and threshold > 1:
+            compression["threshold_messages"] = int(threshold)
+        else:
+            compression["threshold_messages"] = 20
+    compression.pop("threshold", None)
+    compression.pop("summary_model", None)
+    compression.pop("summary_provider", None)
+    compression.pop("summary_base_url", None)
+    return ContextCompressor(**compression)
 
 
 async def run_prompt(
@@ -43,11 +60,16 @@ async def run_prompt(
     toolsets: list[str] | None = None,
     session_path: Path | None = None,
     load_extensions: bool = True,
+    system_prompt_suffix: str | None = None,
+    env_overrides: dict[str, str] | None = None,
+    session_source: str = "cli",
 ) -> PromptResult:
     cwd = (cwd or Path.cwd()).resolve()
     home = ensure_io_home(home)
     config = load_config(home)
     env = {**load_env(home), **os.environ}
+    if env_overrides:
+        env.update({key: str(value) for key, value in env_overrides.items()})
     runtime = resolve_runtime(
         cli_model=model,
         cli_provider=provider,
@@ -61,7 +83,7 @@ async def run_prompt(
     session_db = SessionDB(home / "state.db")
     session_db.start_session(
         session_manager.session_id,
-        source="cli",
+        source=session_source,
         cwd=str(cwd),
         model=runtime.model,
         title=session_manager.get_session_name() or prompt[:72],
@@ -79,6 +101,10 @@ async def run_prompt(
     memories = memory_snapshot(home)
     if memories:
         system_prompt = f"{system_prompt.strip()}\n\n{memories}"
+    if system_prompt_suffix:
+        suffix = str(system_prompt_suffix).strip()
+        if suffix:
+            system_prompt = f"{system_prompt.strip()}\n\n{suffix}"
     before_start = await extension_runner.emit_before_agent_start(
         {"prompt": prompt, "cwd": str(cwd), "system_prompt": system_prompt, "messages": []}
     )
@@ -117,7 +143,7 @@ async def run_prompt(
     agent = Agent(
         tool_registry=get_tool_registry(),
         toolset_resolver=build_toolset_resolver(),
-        compressor=ContextCompressor(**config.get("compression", {})),
+        compressor=_build_compressor(config),
         max_iterations=int(config.get("agent", {}).get("max_turns", 8)),
     )
     result = await agent.run(
@@ -149,6 +175,7 @@ async def run_prompt(
             content=str(message.get("content", "")),
             tool_name=message.get("name"),
             tool_call_id=message.get("tool_call_id"),
+            payload=message,
         )
 
     return PromptResult(
@@ -158,6 +185,7 @@ async def run_prompt(
         session_path=session_manager.session_path(),
         messages=new_messages,
         loaded_extensions=loaded_extensions,
+        usage=result.usage,
     )
 
 
@@ -169,6 +197,14 @@ def format_prompt_result(result: PromptResult, *, as_json: bool = False) -> str:
         "session_path": str(result.session_path),
         "messages": result.messages,
         "loaded_extensions": result.loaded_extensions,
+        "usage": {
+            "input_tokens": result.usage.input_tokens,
+            "output_tokens": result.usage.output_tokens,
+            "cache_read_tokens": result.usage.cache_read_tokens,
+            "cache_write_tokens": result.usage.cache_write_tokens,
+            "reasoning_tokens": result.usage.reasoning_tokens,
+            "cost_usd": result.usage.cost_usd,
+        },
     }
     if as_json:
         return json.dumps(payload, indent=2, sort_keys=True)

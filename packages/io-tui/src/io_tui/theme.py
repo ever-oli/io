@@ -12,7 +12,7 @@ class Theme:
     banner_text: str = "#fff8e5"
     accent: str = "#ffb700"
     response_border: str = "#c87837"
-    prompt_symbol: str = "❯ "
+    prompt_symbol: str = "Φ "
     labels: dict[str, str] = field(
         default_factory=lambda: {
             "user": "USER",

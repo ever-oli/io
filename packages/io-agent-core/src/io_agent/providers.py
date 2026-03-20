@@ -3,19 +3,46 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-
-SUPPORTED_PROVIDERS = {"mock", "openai", "openrouter", "anthropic"}
+from io_ai import (
+    AuthStore,
+    ModelRegistry,
+    canonical_provider_name,
+    get_model_config,
+    normalize_provider_name,
+    resolve_runtime_provider,
+)
 
 
 @dataclass(slots=True)
 class ResolvedRuntime:
-    provider: str | None
+    provider: str
     model: str
     base_url: str | None = None
+    api_key: str | None = None
+    api_mode: str = "chat_completions"
+    source: str = "default"
+    requested_provider: str | None = None
+
+
+def _has_any_auth(store: AuthStore, config: dict[str, Any]) -> bool:
+    for provider in store.list_known_providers():
+        if provider == "mock":
+            continue
+        status = store.provider_status(provider, config=config)
+        if status.get("logged_in"):
+            return True
+    custom_providers = config.get("custom_providers", [])
+    if isinstance(custom_providers, list):
+        for entry in custom_providers:
+            if not isinstance(entry, dict):
+                continue
+            if str(entry.get("base_url", "") or "").strip():
+                return True
+    return False
 
 
 def resolve_runtime(
@@ -29,27 +56,67 @@ def resolve_runtime(
 ) -> ResolvedRuntime:
     env = env or dict(os.environ)
     config = config or {}
-    provider = (
-        cli_provider
-        or env.get("IO_INFERENCE_PROVIDER")
-        or config.get("model", {}).get("provider")
-        or env.get("OPENROUTER_API_KEY")
-        and "openrouter"
-        or "mock"
+    store = AuthStore(home=home, env=env)
+    registry = ModelRegistry()
+    model_cfg = get_model_config(config)
+
+    runtime = resolve_runtime_provider(
+        requested=cli_provider,
+        explicit_base_url=cli_base_url,
+        config=config,
+        home=home,
+        env=env,
     )
-    model = (
-        cli_model
-        or env.get("IO_MODEL")
-        or config.get("model", {}).get("default")
-        or (
-            "openrouter/openai/gpt-5-mini"
-            if env.get("OPENROUTER_API_KEY") or env.get("OPENAI_API_KEY")
-            else "mock/io-test"
+    requested_provider = runtime.get("requested_provider")
+    provider = canonical_provider_name(str(runtime.get("provider") or "")) or "mock"
+    base_url = str(runtime.get("base_url") or "").strip() or None
+    api_key = str(runtime.get("api_key") or "").strip() or None
+    api_mode = str(runtime.get("api_mode") or "chat_completions")
+    source = str(runtime.get("source") or "config/env")
+    requested_normalized = normalize_provider_name(requested_provider)
+
+    if provider == "openrouter" and (
+        source.startswith("custom_provider:")
+        or requested_normalized == "custom"
+        or str(requested_normalized or "").startswith("custom:")
+        or (base_url and "openrouter.ai" not in base_url.lower())
+    ):
+        provider = "custom"
+
+    explicit_model = cli_model or env.get("IO_MODEL") or model_cfg.get("default")
+
+    if (
+        not _has_any_auth(store, config)
+        and requested_provider in {None, "", "auto"}
+        and not cli_model
+        and not cli_base_url
+    ):
+        provider = "mock"
+        chosen = registry.resolve(model="mock/io-test", provider="mock")
+        base_url = None
+        api_key = None
+        api_mode = "mock"
+        source = "mock-fallback"
+    elif provider == "mock":
+        chosen = registry.resolve(model=explicit_model or "mock/io-test", provider="mock")
+    elif provider == "custom" and explicit_model and not explicit_model.startswith("custom/"):
+        chosen = registry.resolve(model=explicit_model, provider="openai", base_url=base_url)
+        chosen = replace(
+            chosen,
+            provider="custom",
+            id=f"custom/{chosen.remote_id}",
+            base_url=base_url,
         )
+    else:
+        chosen = registry.resolve(model=explicit_model, provider=provider, base_url=base_url)
+        provider = chosen.provider
+
+    return ResolvedRuntime(
+        provider=provider,
+        model=chosen.id,
+        base_url=base_url or chosen.base_url,
+        api_key=api_key,
+        api_mode=api_mode or chosen.api,
+        source=source,
+        requested_provider=requested_normalized,
     )
-    base_url = cli_base_url or env.get("IO_BASE_URL") or config.get("model", {}).get("base_url")
-    if provider not in SUPPORTED_PROVIDERS:
-        provider = "openrouter" if env.get("OPENROUTER_API_KEY") or env.get("OPENAI_API_KEY") else "mock"
-        if provider == "mock":
-            model = "mock/io-test"
-    return ResolvedRuntime(provider=provider, model=model, base_url=base_url)

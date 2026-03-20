@@ -40,6 +40,17 @@ class SessionManager:
         session_dir.mkdir(parents=True, exist_ok=True)
         session_id = uuid.uuid4().hex
         session_file = session_dir / f"{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{session_id[:8]}.jsonl"
+        return cls.create_at_path(cwd, session_file=session_file, session_id=session_id)
+
+    @classmethod
+    def create_at_path(
+        cls,
+        cwd: Path,
+        *,
+        session_file: Path,
+        session_id: str | None = None,
+    ) -> "SessionManager":
+        session_id = session_id or uuid.uuid4().hex
         header = {
             "type": "session",
             "version": 3,
@@ -218,3 +229,49 @@ class SessionManager:
 
     def session_path(self) -> Path:
         return self.session_file
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "session_id": self.session_id,
+            "path": str(self.session_file),
+            "cwd": str(self.cwd),
+            "name": self.get_session_name(),
+            "entry_count": len(self.entries),
+            "leaf_id": self.leaf_id,
+            "version": self.header.get("version"),
+        }
+
+    def format_tree(self) -> str:
+        children = self.get_tree()
+        entries = {entry["id"]: entry for entry in self.entries}
+        lines: list[str] = [f"session {self.session_id}"]
+
+        def _label(entry_id: str) -> str:
+            entry = entries[entry_id]
+            entry_type = entry.get("type", "entry")
+            if entry_type == "message":
+                message = entry.get("message", {})
+                role = message.get("role", "message")
+                content = str(message.get("content", "")).strip().replace("\n", " ")
+                return f"{entry_id} {entry_type} {role}: {content[:60]}".rstrip()
+            if entry_type == "session_info":
+                return f"{entry_id} session_info {entry.get('name', '')}".rstrip()
+            if entry_type == "compaction":
+                return f"{entry_id} compaction {str(entry.get('summary', ''))[:60]}".rstrip()
+            if entry_type == "branch_summary":
+                return f"{entry_id} branch_summary {str(entry.get('summary', ''))[:60]}".rstrip()
+            return f"{entry_id} {entry_type}"
+
+        def _walk(parent_id: str | None, prefix: str) -> None:
+            child_ids = children.get(parent_id, [])
+            for index, entry_id in enumerate(child_ids):
+                connector = "ΦΦ" if index == len(child_ids) - 1 else "ΦΦ"
+                lines.append(f"{prefix}{connector} {_label(entry_id)}")
+                _walk(entry_id, f"{prefix}{'   ' if index == len(child_ids) - 1 else 'Φ  '}")
+
+        _walk(None, "")
+        return "\n".join(lines)
+
+    @staticmethod
+    def delete(session_file: Path) -> None:
+        session_file.unlink(missing_ok=False)
