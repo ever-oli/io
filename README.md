@@ -4,10 +4,8 @@
 
 # IO
 
-IO is a clean-room Python rewrite of the IO operating model, organized around
-the core package boundaries lifted from pi-mono. The runtime and repo layout
-are being expanded toward IO parity while keeping IO branding and package-native
-Python internals.
+IO is a clean-room Python rewrite of the pi-mono repo and hermes , organized around
+the core package boundaries lifted from pi-mono. I couldn't decide on one so why not both. 
 
 ## Version
 
