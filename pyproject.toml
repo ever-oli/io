@@ -1,0 +1,72 @@
+[project]
+name = "io-workspace"
+version = "0.1.0"
+description = "IO Agent monorepo"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "io-coding-agent",
+  "io-web-ui",
+  "io-mom",
+  "io-pods",
+]
+
+[project.scripts]
+io = "io_cli.cli:main"
+mom = "io_mom.main:main"
+io-pods = "io_pods.main:main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/io_workspace"]
+
+[tool.uv.workspace]
+members = [
+  "packages/io-ai",
+  "packages/io-agent-core",
+  "packages/io-tui",
+  "packages/io-coding-agent",
+  "packages/io-web-ui",
+  "packages/io-mom",
+  "packages/io-pods",
+]
+
+[tool.uv.sources]
+io-ai = { workspace = true }
+io-agent-core = { workspace = true }
+io-tui = { workspace = true }
+io-coding-agent = { workspace = true }
+io-web-ui = { workspace = true }
+io-mom = { workspace = true }
+io-pods = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.5",
+  "pytest-asyncio>=0.25.3",
+  "ruff>=0.11.2",
+  "mypy>=1.15.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = [
+  "packages/io-ai/src",
+  "packages/io-agent-core/src",
+  "packages/io-tui/src",
+  "packages/io-coding-agent/src",
+  "packages/io-web-ui/src",
+  "packages/io-mom/src",
+  "packages/io-pods/src",
+  "src",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+

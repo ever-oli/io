@@ -1,0 +1,23 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from io_agent import ToolContext, execute_tool_batch
+from io_cli.tools.registry import get_tool_registry
+
+
+@pytest.mark.asyncio
+async def test_dangerous_bash_requires_approval(tmp_path: Path) -> None:
+    registry = get_tool_registry()
+    tool = registry.get("bash")
+    context = ToolContext(
+        cwd=tmp_path,
+        home=tmp_path / "home",
+        approval_callback=lambda _name, _arguments, _reason: False,
+    )
+    results = await execute_tool_batch([(tool, {"command": "rm -rf /tmp/demo"}, "call-1")], context=context)
+    assert results[0][1].is_error is True
+    assert "requires approval" in results[0][1].content
+
