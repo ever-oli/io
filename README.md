@@ -7,7 +7,7 @@ Python internals.
 
 ## Version
 
-Current milestone: `0.0.1` (gateway parity + improved CLI progress feedback).
+Current milestone: `0.1.1` (gateway parity + improved CLI progress feedback).
 
 ## Packages
 
