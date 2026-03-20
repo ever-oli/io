@@ -27,16 +27,21 @@ class AuthStore:
         self.home = self.home or Path(os.getenv("IO_HOME", Path.home() / ".io"))
 
     @property
+    def resolved_home(self) -> Path:
+        assert self.home is not None
+        return self.home
+
+    @property
     def auth_path(self) -> Path:
-        return self.home / "auth.json"
+        return self.resolved_home / "auth.json"
 
     @property
     def env_path(self) -> Path:
-        return self.home / ".env"
+        return self.resolved_home / ".env"
 
     @property
     def config_path(self) -> Path:
-        return self.home / "config.yaml"
+        return self.resolved_home / "config.yaml"
 
     def load_auth(self) -> dict[str, Any]:
         if not self.auth_path.exists():
@@ -44,7 +49,7 @@ class AuthStore:
         return json.loads(self.auth_path.read_text(encoding="utf-8"))
 
     def save_auth(self, payload: dict[str, Any]) -> None:
-        self.home.mkdir(parents=True, exist_ok=True)
+        self.resolved_home.mkdir(parents=True, exist_ok=True)
         self.auth_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
     def dotenv_values(self) -> dict[str, str]:
@@ -75,4 +80,3 @@ class AuthStore:
         if provider == "anthropic":
             return {"x-api-key": token, "anthropic-version": "2023-06-01"}
         return {"Authorization": f"Bearer {token}"}
-

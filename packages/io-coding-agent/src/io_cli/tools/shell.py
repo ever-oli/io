@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import shlex
 from pathlib import Path
 
 from io_agent import GLOBAL_TOOL_REGISTRY, Tool, ToolContext, ToolResult
@@ -87,4 +86,3 @@ class LsTool(Tool):
 
 GLOBAL_TOOL_REGISTRY.register(BashTool())
 GLOBAL_TOOL_REGISTRY.register(LsTool())
-

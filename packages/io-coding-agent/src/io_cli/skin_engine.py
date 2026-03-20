@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
-
 import yaml
 
 from io_tui import Theme
@@ -40,4 +38,3 @@ class SkinEngine:
             }
         )
         return Theme(**base)
-

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from itertools import count
+from typing import Any, cast
 
 from io_ai.types import AssistantResponse, CompletionRequest, ToolCall, Usage
 
@@ -39,7 +40,8 @@ class MockProvider(Provider):
         directive = TOOL_DIRECTIVE.match(text)
         if directive and directive.group("name") in available_tools:
             raw_args = directive.group("args")
-            arguments = json.loads(raw_args) if raw_args else {}
+            parsed_args = json.loads(raw_args) if raw_args else {}
+            arguments = cast(dict[str, Any], parsed_args) if isinstance(parsed_args, dict) else {}
             return AssistantResponse(
                 tool_calls=[
                     ToolCall(
@@ -53,7 +55,7 @@ class MockProvider(Provider):
                 model=request.model.id,
             )
 
-        heuristics = {
+        heuristics: dict[str, tuple[str, dict[str, Any]]] = {
             "list files": ("ls", {"path": "."}),
             "remember ": ("memory", {"action": "save_note", "content": text.partition("remember ")[2]}),
             "search session ": (
@@ -75,4 +77,3 @@ class MockProvider(Provider):
         response = AssistantResponse(content=content, usage=usage, provider=self.name, model=request.model.id)
         response.usage.output_tokens = len(content)
         return response
-

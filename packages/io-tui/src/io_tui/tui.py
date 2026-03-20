@@ -29,6 +29,5 @@ class TerminalUI:
         print_transcript(messages, console=self.console, theme=self.theme)
 
     def prompt(self, message: str | None = None) -> str:
-        session = PromptSession(history=self.history)
+        session: PromptSession[str] = PromptSession(history=self.history)
         return session.prompt(message or self.theme.prompt_symbol)
-

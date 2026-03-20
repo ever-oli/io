@@ -8,7 +8,7 @@ from .auth import AuthStore
 from .cost import CostTracker
 from .models import ModelRegistry
 from .providers import get_provider
-from .types import AssistantEvent, AssistantResponse, CompletionRequest
+from .types import AssistantResponse, CompletionRequest
 
 
 async def stream(
@@ -67,4 +67,3 @@ async def stream_simple(
     cost_tracker = cost_tracker or CostTracker()
     final_response.usage = cost_tracker.estimate(final_response.model or model or "mock/io-test", final_response.usage)
     return final_response
-

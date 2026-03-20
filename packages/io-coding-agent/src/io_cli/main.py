@@ -145,7 +145,7 @@ async def run_prompt(
         session_manager.append_message(message)
         session_db.index_message(
             session_manager.session_id,
-            role=role,
+            role=str(role or "assistant"),
             content=str(message.get("content", "")),
             tool_name=message.get("name"),
             tool_call_id=message.get("tool_call_id"),
@@ -177,4 +177,3 @@ def format_prompt_result(result: PromptResult, *, as_json: bool = False) -> str:
 
 def build_theme(home: Path | None = None):
     return SkinEngine(home=home).load()
-

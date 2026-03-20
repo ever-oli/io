@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -119,7 +118,7 @@ class SessionManager:
         details: dict[str, Any] | None = None,
         from_hook: bool = False,
     ) -> str:
-        payload = {
+        payload: dict[str, Any] = {
             "summary": summary,
             "firstKeptEntryId": first_kept_entry_id,
             "tokensBefore": tokens_before,
@@ -137,7 +136,7 @@ class SessionManager:
         details: dict[str, Any] | None = None,
         from_hook: bool = False,
     ) -> str:
-        payload = {"fromId": from_id, "summary": summary}
+        payload: dict[str, Any] = {"fromId": from_id, "summary": summary}
         if details:
             payload["details"] = details
         if from_hook:
@@ -219,4 +218,3 @@ class SessionManager:
 
     def session_path(self) -> Path:
         return self.session_file
-

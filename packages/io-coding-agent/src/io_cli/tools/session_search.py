@@ -20,7 +20,8 @@ class SessionSearchTool(Tool):
     async def execute(self, context: ToolContext, arguments: dict[str, object]) -> ToolResult:
         if context.session_db is None:
             return ToolResult(content="Session database is not configured.", is_error=True)
-        rows = context.session_db.search(str(arguments["query"]), int(arguments.get("limit", 5)))
+        limit_value = arguments.get("limit", 5)
+        rows = context.session_db.search(str(arguments["query"]), int(str(limit_value)))
         lines = []
         for row in rows:
             lines.append(f"[{row.get('session_id')}] {row.get('role')}: {row.get('content')}")
@@ -28,4 +29,3 @@ class SessionSearchTool(Tool):
 
 
 GLOBAL_TOOL_REGISTRY.register(SessionSearchTool())
-

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from io_agent import GLOBAL_TOOL_REGISTRY, Tool, ToolContext, ToolResult
 
 
@@ -53,4 +51,3 @@ class MemoryTool(Tool):
 
 
 GLOBAL_TOOL_REGISTRY.register(MemoryTool())
-
