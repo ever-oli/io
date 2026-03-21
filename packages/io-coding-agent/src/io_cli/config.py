@@ -52,7 +52,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "backend": "local",
         "timeout": 20,
         "max_extract_chars": 5000,
-        "user_agent": "IO Agent/0.1",
+        "user_agent": "IO Agent/0.1.2",
     },
     "checkpoints": {
         "enabled": True,
@@ -106,6 +106,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "gateway": {
         "enabled": False,
+    },
+    "nuggets": {
+        "auto_promote": True,
     },
     "skills": {
         "auto_load": True,

@@ -1,6 +1,6 @@
 [project]
 name = "io-pods"
-version = "0.1.0"
+version = "0.1.2"
 description = "GPU pod and vLLM management for IO"
 requires-python = ">=3.11"
 dependencies = [

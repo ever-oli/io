@@ -1,6 +1,6 @@
 [project]
 name = "io-workspace"
-version = "0.1.0"
+version = "0.1.2"
 description = "IO Agent monorepo"
 readme = "README.md"
 requires-python = ">=3.11"

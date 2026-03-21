@@ -31,7 +31,7 @@ DEFAULT_MAX_CONTENT_CHARS = 5000
 MAX_FETCH_BYTES = 2_000_000
 MAX_SEARCH_RESULTS = 10
 MAX_EXTRACT_URLS = 5
-DEFAULT_USER_AGENT = "IO Agent/0.1"
+DEFAULT_USER_AGENT = "IO Agent/0.1.2"
 
 
 def _json_result(payload: dict[str, Any]) -> ToolResult:

@@ -31,6 +31,7 @@ _IO_CORE_TOOLS = [
     "patch",
     "search_files",
     "memory",
+    "nuggets",
     "session_search",
     "bash",
     "ls",
@@ -171,6 +172,13 @@ _TOOLSETS: dict[str, dict[str, Any]] = {
     "memory": {
         "description": "Persistent memory across sessions",
         "tools": ["memory"],
+        "includes": [],
+        "platforms": [],
+        "legacy": False,
+    },
+    "nuggets": {
+        "description": "Holographic (HRR) nugget memory — Nuggets-style recall",
+        "tools": ["nuggets"],
         "includes": [],
         "platforms": [],
         "legacy": False,

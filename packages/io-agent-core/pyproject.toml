@@ -1,6 +1,6 @@
 [project]
 name = "io-agent-core"
-version = "0.1.0"
+version = "0.1.2"
 description = "Core agent runtime for IO"
 requires-python = ">=3.11"
 dependencies = [

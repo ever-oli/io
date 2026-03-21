@@ -9,7 +9,7 @@ the core package boundaries lifted from pi-mono. I couldn't decide on one so why
 
 ## Version
 
-Current milestone: `0.1.1` (gateway parity + improved CLI progress feedback).
+Current milestone: `0.1.2` (2026-03-19) — Nuggets-style HRR memory parity, gateway surfaces, CLI hardening.
 
 ## Packages
 
@@ -19,6 +19,19 @@ Current milestone: `0.1.1` (gateway parity + improved CLI progress feedback).
 - `io-coding-agent`: CLI, session manager, extensions, and built-in tools
 - `io-web-ui`: FastAPI web runtime and browser chat surface
 - `io-pods`: persisted local pod lifecycle and vLLM management
+
+### Holographic memory (Nuggets-style)
+
+The `nuggets` tool provides **Holographic Reduced Representation (HRR)** memory
+inspired by [Nuggets](https://github.com/NeoVertex1/nuggets) (MIT): facts live
+under `~/.io/nuggets/` (per IO home) as small JSON files; recall is local
+algebra on fixed-size vectors. Facts recalled often are merged into
+`memories/MEMORY.md` (threshold 3) when `nuggets.auto_promote` is true in config.
+The default vector dimension is large (`D=16384`); Python rebuild cost is higher
+than the upstream TypeScript engine—use smaller `D` only for tests or light use.
+Behavioral parity targets (PRNG goldens, Nuggets-style fuzzy keys, promotion header)
+are documented in [`docs/nuggets_parity.md`](docs/nuggets_parity.md) with tests in
+`tests/test_nuggets_parity.py`.
 
 ## Repo Layout
 
@@ -35,6 +48,8 @@ uv sync
 uv run io --help
 uv run pytest
 ```
+
+If `io` fails with `ModuleNotFoundError: No module named 'numpy'`, reinstall from this repo (`uv sync`) or `pip install numpy` into the **same environment** as the `io` executable (e.g. refresh a `pipx`/`pip --user` install). Holographic nuggets need NumPy when that tool is enabled.
 
 ## Gateway Parity Surfaces
 

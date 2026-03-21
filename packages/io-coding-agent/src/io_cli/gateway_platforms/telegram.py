@@ -160,7 +160,7 @@ class TelegramAdapter(BasePlatformAdapter):
             response = await client.post(
                 f"{self._api_base_url}/{method}",
                 json=payload or {},
-                headers={"User-Agent": "IO Agent/0.1"},
+                headers={"User-Agent": "IO Agent/0.1.2"},
             )
         response.raise_for_status()
         data = response.json()

@@ -68,9 +68,11 @@ async def run_prompt(
     cwd = (cwd or Path.cwd()).resolve()
     home = ensure_io_home(home)
     config = load_config(home)
+    session_manager = SessionManager.open(session_path) if session_path else SessionManager.continue_recent(cwd, home=home)
     env = {**load_env(home), **os.environ}
     if env_overrides:
         env.update({key: str(value) for key, value in env_overrides.items()})
+    env["IO_SESSION_ID"] = str(session_manager.session_id)
     runtime = resolve_runtime(
         cli_model=model,
         cli_provider=provider,
@@ -79,8 +81,6 @@ async def run_prompt(
         env=env,
         home=home,
     )
-
-    session_manager = SessionManager.open(session_path) if session_path else SessionManager.continue_recent(cwd, home=home)
     session_db = SessionDB(home / "state.db")
     session_db.start_session(
         session_manager.session_id,
@@ -179,6 +179,20 @@ async def run_prompt(
             tool_call_id=message.get("tool_call_id"),
             payload=message,
         )
+
+    ncfg = config.get("nuggets") if isinstance(config.get("nuggets"), dict) else {}
+    if ncfg.get("auto_promote", True):
+        try:
+            from .nuggets.promote import promote_facts
+            from .nuggets.shelf import NuggetShelf
+
+            sh = NuggetShelf(save_dir=home / "nuggets", auto_save=True)
+            sh.load_all()
+            promote_facts(sh, memories_dir=home / "memories")
+        except ImportError:
+            pass
+        except OSError:
+            pass
 
     return PromptResult(
         text=result.final_text,

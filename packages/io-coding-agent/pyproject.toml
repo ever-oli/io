@@ -1,6 +1,6 @@
 [project]
 name = "io-coding-agent"
-version = "0.1.0"
+version = "0.1.2"
 description = "Main IO coding agent CLI"
 requires-python = ">=3.11"
 dependencies = [
@@ -8,6 +8,7 @@ dependencies = [
   "io-ai",
   "io-agent-core",
   "io-tui",
+  "numpy>=1.26",
   "httpx>=0.28.1",
   "prompt_toolkit>=3.0.50",
   "python-dotenv>=1.0.1",

@@ -7,7 +7,22 @@ from typing import Any
 
 from io_agent import GLOBAL_TOOL_REGISTRY, ToolRegistry
 
-from . import compat, cronjob, filesystem, memory, session_search, shell, skills, web  # noqa: F401
+
+def _register_builtin_tool_modules() -> None:
+    from . import compat, cronjob, filesystem, memory, session_search, shell, skills, web  # noqa: F401
+
+    try:
+        from . import nuggets_tool  # noqa: F401
+    except ImportError as exc:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Nuggets HRR tool unavailable (install numpy): %s",
+            exc,
+        )
+
+
+_register_builtin_tool_modules()
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +48,7 @@ TOOL_METADATA: dict[str, ToolMetadata] = {
     "find": ToolMetadata("find", "file", "📂"),
     "grep": ToolMetadata("grep", "file", "🔎"),
     "memory": ToolMetadata("memory", "memory", "🧠"),
+    "nuggets": ToolMetadata("nuggets", "nuggets", "✨"),
     "session_search": ToolMetadata("session_search", "session_search", "🗂️"),
     "skills_list": ToolMetadata("skills_list", "skills", "Φ"),
     "skill_view": ToolMetadata("skill_view", "skills", "Φ"),
