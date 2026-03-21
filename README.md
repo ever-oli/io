@@ -125,6 +125,8 @@ Pick one:
 
    Ensure `uv tool`'s bin dir is on PATH (often `~/.local/bin`).
 
+**Terminal tab (pi-style):** When the **interactive** REPL starts, IO prints an **OSC 0** title sequence (same mechanism as pi’s `setTitle`) so many terminals show **`φ io — ~/your/project`**. If the tab still says **`uv`** until IO boots, that’s the parent process name — put **`.venv/bin/io`** on PATH (option 2) so the shell spawns **`io`** directly. Set **`IO_TERMINAL_TITLE=0`** to disable title changes.
+
 If `which io` shows nothing or the wrong binary, fix PATH/alias first. If `io` fails with `ModuleNotFoundError: No module named 'numpy'`, reinstall from this repo (`uv sync`) or `pip install numpy` into the **same environment** as the `io` executable (e.g. refresh a `pipx`/`pip --user` install). Holographic nuggets need NumPy when that tool is enabled.
 
 ## Gateway Parity Surfaces

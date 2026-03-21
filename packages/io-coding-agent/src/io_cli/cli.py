@@ -12,7 +12,7 @@ import sys
 
 import yaml
 
-from io_tui import TerminalUI
+from io_tui import TerminalUI, format_io_window_title, set_terminal_title
 
 from .banner import build_welcome_banner, prefetch_update_check
 from .commands import COMMANDS_BY_CATEGORY
@@ -426,6 +426,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _run_repl(args: argparse.Namespace) -> int:
+    set_terminal_title(format_io_window_title(args.cwd.resolve()))
     ui = TerminalUI(theme=build_theme())
     home = ensure_io_home(None)
     config = load_config(home)
