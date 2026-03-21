@@ -9,7 +9,19 @@ from io_agent import GLOBAL_TOOL_REGISTRY, ToolRegistry
 
 
 def _register_builtin_tool_modules() -> None:
-    from . import compat, cronjob, filesystem, memory, session_search, shell, skills, web  # noqa: F401
+    from . import (  # noqa: F401
+        compat,
+        cronjob,
+        delegation,
+        filesystem,
+        honcho_tools,
+        browser_tools,
+        memory,
+        session_search,
+        shell,
+        skills,
+        web,
+    )
 
     try:
         from . import nuggets_tool  # noqa: F401
@@ -54,8 +66,25 @@ TOOL_METADATA: dict[str, ToolMetadata] = {
     "skill_view": ToolMetadata("skill_view", "skills", "Φ"),
     "skill_manage": ToolMetadata("skill_manage", "skills", "📝"),
     "cronjob": ToolMetadata("cronjob", "cronjob", "Φ"),
+    "delegate_task": ToolMetadata("delegate_task", "delegation", "🧩"),
+    "execute_code": ToolMetadata("execute_code", "code_execution", "🐍"),
+    "honcho_context": ToolMetadata("honcho_context", "honcho", "🧠"),
+    "honcho_profile": ToolMetadata("honcho_profile", "honcho", "🧠"),
+    "honcho_search": ToolMetadata("honcho_search", "honcho", "🔎"),
+    "honcho_conclude": ToolMetadata("honcho_conclude", "honcho", "✅"),
     "web_search": ToolMetadata("web_search", "web", "🔍"),
     "web_extract": ToolMetadata("web_extract", "web", "📄"),
+    "browser_navigate": ToolMetadata("browser_navigate", "browser", "🌐"),
+    "browser_snapshot": ToolMetadata("browser_snapshot", "browser", "🌐"),
+    "browser_click": ToolMetadata("browser_click", "browser", "🌐"),
+    "browser_type": ToolMetadata("browser_type", "browser", "🌐"),
+    "browser_scroll": ToolMetadata("browser_scroll", "browser", "🌐"),
+    "browser_back": ToolMetadata("browser_back", "browser", "🌐"),
+    "browser_press": ToolMetadata("browser_press", "browser", "🌐"),
+    "browser_close": ToolMetadata("browser_close", "browser", "🌐"),
+    "browser_get_images": ToolMetadata("browser_get_images", "browser", "🌐"),
+    "browser_vision": ToolMetadata("browser_vision", "browser", "🌐"),
+    "browser_console": ToolMetadata("browser_console", "browser", "🌐"),
 }
 
 

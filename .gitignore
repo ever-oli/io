@@ -13,3 +13,7 @@ dist/
 build/
 *.egg-info/
 
+# Local persona / system prompt (Tavern-style SOUL); not committed — see README
+/soul.md
+/SOUL.md
+

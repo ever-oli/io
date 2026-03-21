@@ -1,4 +1,4 @@
-"""Hermes-style REPL prompt: tab completion, ghost suggestions, skills, models."""
+"""REPL prompt: tab completion, ghost suggestions, skills, pi-style /model completion."""
 
 from __future__ import annotations
 
@@ -9,15 +9,21 @@ from typing import Any
 from io_agent import resolve_runtime
 from io_ai import ModelRegistry, provider_label
 
+from .auth import auth_status
 from .commands import SlashCommandAutoSuggest, SlashCommandCompleter, gateway_only_slash_completions
 from .config import load_config, load_env
 from .skills import skill_slash_command_map
 
 
 def _model_completer_payload(*, home: Path) -> dict[str, Any]:
+    """Providers with credentials only (pi-mono ``getAvailable`` semantics for the picker)."""
     registry = ModelRegistry()
-    providers_list = sorted({m.provider for m in registry.list()})
-    providers = {p: provider_label(p) for p in providers_list}
+    status = auth_status(home)
+    providers: dict[str, str] = {}
+    for _pid, pdata in (status.get("providers") or {}).items():
+        if isinstance(pdata, dict) and pdata.get("logged_in"):
+            prov = str(pdata.get("provider", _pid))
+            providers[prov] = provider_label(prov)
 
     def models_for(provider_id: str) -> list[str]:
         return [m.remote_id for m in registry.provider_models(provider_id)]

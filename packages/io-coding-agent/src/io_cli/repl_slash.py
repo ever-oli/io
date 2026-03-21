@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 from pathlib import Path
 from typing import Any, Callable
 
@@ -16,6 +17,7 @@ from io_agent import resolve_runtime
 from .auth import auth_status
 from .commands import GATEWAY_KNOWN_COMMANDS, gateway_help_lines, resolve_command
 from .config import load_config, load_env, save_config
+from .models import apply_user_model_selection_to_config
 from .gateway import GatewayManager
 from .main import run_prompt
 from .session import SessionManager
@@ -47,6 +49,7 @@ async def handle_repl_slash_command(
     repl_args: argparse.Namespace,
     load_extensions: bool,
     on_event: Callable[[str, dict[str, Any]], None] | None,
+    repl_interactive: bool = False,
 ) -> tuple[bool, str]:
     """If this is a known slash command, handle it and return ``(True, message)``.
 
@@ -111,6 +114,41 @@ async def handle_repl_slash_command(
                 lines.append(f"- {platform_name}: {runtime_state}{suffix}")
         return True, "\n".join(lines)
 
+    if canonical == "gateway":
+        from .config import ensure_io_home
+        from .gateway_spawn import spawn_gateway_run_detached
+
+        home = ensure_io_home(None)
+        parts = arguments.strip().split()
+        sub = parts[0].lower() if parts else "status"
+        if sub in ("start", "run"):
+            _pid, _log, msg = spawn_gateway_run_detached(home)
+            return True, msg
+        if sub == "status":
+            manager = GatewayManager(home=home)
+            status = manager.status()
+            lines = [
+                "Gateway",
+                f"Desired state: {status.get('desired_state', 'stopped')}",
+                f"Runtime: {status.get('runtime', {}).get('gateway_state') or 'stopped'}",
+            ]
+            configured = list(status.get("configured_platforms", []))
+            lines.append(
+                "Configured: " + (", ".join(configured) if configured else "(none)")
+            )
+            return True, "\n".join(lines)
+        return True, "Usage: /gateway start|run|status"
+
+    if canonical == "gauss":
+        from .config import ensure_io_home
+        from .gauss import run_gauss_passthrough
+
+        home = ensure_io_home(None)
+        config = load_config(home)
+        gargv = shlex.split(arguments) if arguments.strip() else []
+        code = run_gauss_passthrough(gargv, config=config, home=home)
+        return True, f"gauss exited with code {code}"
+
     if canonical in {"help", "start"}:
         lines = ["IO commands (REPL / gateway parity):", *gateway_help_lines(), "", "Send normal text to chat with the agent."]
         return True, "\n".join(lines)
@@ -149,10 +187,34 @@ async def handle_repl_slash_command(
         if arguments:
             selected = arguments.strip()
             config = load_config(home)
-            config.setdefault("model", {})
-            config["model"]["default"] = selected
+            model_cfg = apply_user_model_selection_to_config(
+                selected, home=home, config=config, env=env
+            )
+            config["model"] = model_cfg
             save_config(config, home)
-            return True, f"Default model set to {selected}."
+            rid = str(model_cfg.get("default", selected))
+            return True, f"Default model set to {rid}."
+        if repl_interactive:
+            from .model_picker import run_model_picker_dialog
+
+            config = load_config(home)
+            choice, why = run_model_picker_dialog(home=home, config=config, env=env)
+            if choice is None:
+                hints = {
+                    "no_providers": "No models for configured providers — add API keys (`io auth status`) or use `io models --all`.",
+                    "notty": "Interactive picker needs a terminal (stdin TTY). Use `/model provider:model-id` or `io models`.",
+                    "cancelled": "Model picker cancelled.",
+                    "no_matches": "Unknown or ambiguous model — use `/model` and pick with Tab, or `/model provider:model-id`.",
+                    "dialog_cancelled": "Model picker cancelled.",
+                }
+                return True, hints.get(why, "Model picker closed.")
+            model_cfg = apply_user_model_selection_to_config(
+                choice, home=home, config=config, env=env
+            )
+            config["model"] = model_cfg
+            save_config(config, home)
+            rid = str(model_cfg.get("default", choice))
+            return True, f"Default model set to {rid}."
         config = load_config(home)
         runtime = resolve_runtime(config=config, home=home, env=env)
         return True, f"Current model: {runtime.model}\nCurrent provider: {runtime.provider}"
@@ -185,6 +247,51 @@ async def handle_repl_slash_command(
             True,
             f"Reasoning effort: {effort}\nReasoning display: {'visible' if show else 'hidden'}\nModel: {runtime.model}",
         )
+
+    if canonical == "lean":
+        import asyncio
+
+        from .lean import (
+            format_lean_doctor,
+            format_submit_result,
+            parse_lean_slash_arguments,
+            run_lean_draft,
+            run_lean_formalize,
+            run_lean_prove,
+            run_lean_submit,
+            run_lean_swarm,
+        )
+        from .lean_projects import handle_lean_project_slash
+
+        config = load_config(home)
+        try:
+            sub, statement, _extra, lean_backend = parse_lean_slash_arguments(arguments)
+        except ValueError as exc:
+            return True, str(exc)
+        if sub == "doctor":
+            return True, format_lean_doctor(config, cwd=cwd, home=home)
+        if sub == "project":
+            try:
+                return True, handle_lean_project_slash(statement, home=home, cwd=cwd)
+            except ValueError as exc:
+                return True, str(exc)
+        runners = {
+            "submit": run_lean_submit,
+            "prove": run_lean_prove,
+            "draft": run_lean_draft,
+            "formalize": run_lean_formalize,
+            "swarm": run_lean_swarm,
+        }
+        runner = runners[sub]
+        result = await asyncio.to_thread(
+            runner,
+            statement,
+            config=config,
+            cwd=cwd,
+            home=home,
+            backend=lean_backend,
+        )
+        return True, format_submit_result(result)
 
     if canonical == "personality":
         config = load_config(home)

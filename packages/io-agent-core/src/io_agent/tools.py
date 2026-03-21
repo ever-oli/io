@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from .types import ApprovalCallback, ToolResult
+
+# (tool_name, stream_name "stdout"|"stderr", text_chunk)
+ToolOutputCallback = Callable[[str, str, str], None]
 
 
 @dataclass(slots=True)
@@ -19,6 +23,7 @@ class ToolContext:
     session_store: Any = None
     approval_callback: ApprovalCallback | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    tool_output_callback: ToolOutputCallback | None = None
 
 
 class Tool:

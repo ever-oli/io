@@ -45,6 +45,16 @@ def test_cli_sessions_show_outputs_session_metadata(tmp_path: Path, capsys) -> N
     assert payload["session_id"] == manager.session_id
 
 
+def test_cli_gauss_not_found_returns_127(monkeypatch, capsys) -> None:
+    """When gauss is not on PATH, io gauss exits 127 with install hint."""
+    monkeypatch.setattr("io_cli.gauss.resolve_gauss_bin", lambda *a, **kw: None)
+    exit_code = main(["gauss"])
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "gauss" in captured.err.lower()
+    assert "pip install" in captured.err or "uv add" in captured.err
+
+
 def test_cli_gateway_run_once_invokes_runner(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         "io_cli.cli.run_gateway",

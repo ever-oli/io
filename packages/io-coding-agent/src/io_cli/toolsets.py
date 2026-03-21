@@ -44,6 +44,8 @@ _IO_CORE_TOOLS = [
     "skill_view",
     "skill_manage",
     "cronjob",
+    "delegate_task",
+    "execute_code",
 ]
 
 _TOOLSETS: dict[str, dict[str, Any]] = {

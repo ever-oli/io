@@ -87,6 +87,7 @@ class SingularityEnvironment(BaseEnvironment):
         cwd: Path | str,
         timeout: int | None = None,
         stdin_data: str | None = None,
+        stream_callback=None,
     ) -> dict[str, object]:
         env = {**os.environ, **self.env}
         return self._run_subprocess(
@@ -94,6 +95,7 @@ class SingularityEnvironment(BaseEnvironment):
             timeout=timeout,
             stdin_data=stdin_data,
             env=env,
+            stream_callback=stream_callback,
         )
 
     def spawn_background(self, *, registry, command: str, cwd: Path | str, task_id: str):

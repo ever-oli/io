@@ -22,6 +22,7 @@ class LocalEnvironment(BaseEnvironment):
         cwd: Path | str,
         timeout: int | None = None,
         stdin_data: str | None = None,
+        stream_callback=None,
     ) -> dict[str, object]:
         workdir = cwd if isinstance(cwd, Path) else Path(str(cwd)).expanduser()
         env = {**os.environ, **self.env}
@@ -31,6 +32,7 @@ class LocalEnvironment(BaseEnvironment):
             timeout=timeout,
             stdin_data=stdin_data,
             env=env,
+            stream_callback=stream_callback,
         )
 
     def spawn_background(self, *, registry, command: str, cwd: Path | str, task_id: str):

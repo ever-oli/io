@@ -70,11 +70,13 @@ class SSHEnvironment(BaseEnvironment):
         cwd: Path | str,
         timeout: int | None = None,
         stdin_data: str | None = None,
+        stream_callback=None,
     ) -> dict[str, object]:
         return self._run_subprocess(
             self._build_argv(command, cwd=cwd),
             timeout=timeout,
             stdin_data=stdin_data,
+            stream_callback=stream_callback,
         )
 
     def spawn_background(self, *, registry, command: str, cwd: Path | str, task_id: str):

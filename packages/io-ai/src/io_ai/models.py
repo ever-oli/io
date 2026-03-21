@@ -246,7 +246,7 @@ PROVIDER_ALIASES: dict[str, str] = {
 
 DEFAULT_MODEL_IDS: dict[str, str] = {
     "mock": "mock/io-test",
-    "openrouter": "openrouter/anthropic/claude-opus-4.6",
+    "openrouter": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
     "openai": "openai/gpt-5.4-mini",
     "openai-codex": "openai-codex/gpt-5.3-codex",
     "anthropic": "anthropic/claude-opus-4-6",

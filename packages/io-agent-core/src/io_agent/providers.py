@@ -54,7 +54,11 @@ def resolve_runtime(
     home: Path | None = None,
     env: dict[str, str] | None = None,
 ) -> ResolvedRuntime:
-    env = env or dict(os.environ)
+    # `{}` is a valid "isolated" env for tests; do not treat it as falsy.
+    if env is None:
+        env = dict(os.environ)
+    else:
+        env = dict(env)
     config = config or {}
     store = AuthStore(home=home, env=env)
     registry = ModelRegistry()

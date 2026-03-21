@@ -93,6 +93,7 @@ class ModalEnvironment(BaseEnvironment):
         cwd: Path | str,
         timeout: int | None = None,
         stdin_data: str | None = None,
+        stream_callback=None,
     ) -> dict[str, object]:
         if self._inner is None:
             return {"output": "Modal backend is not available.", "returncode": 1, "timed_out": False}
@@ -120,6 +121,8 @@ class ModalEnvironment(BaseEnvironment):
             timed_out = bool(result.get("timed_out", False))
         else:
             output = str(result)
+        if stream_callback and output:
+            stream_callback("stdout", output)
         return {"output": output, "returncode": returncode, "timed_out": timed_out}
 
     def spawn_background(self, *, registry, command: str, cwd: Path | str, task_id: str):

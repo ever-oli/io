@@ -8,6 +8,9 @@ from pathlib import Path
 
 from io_agent import GLOBAL_TOOL_REGISTRY, Tool, ToolContext, ToolResult
 
+from ..config import get_io_home
+from ..security.tirith import check_command_security, tirith_approval_suffix
+
 
 DANGEROUS_SNIPPETS = (
     "rm -rf",
@@ -36,12 +39,19 @@ class BashTool(Tool):
         for snippet in DANGEROUS_SNIPPETS:
             if snippet in command:
                 return f"Command requires approval because it matches a dangerous pattern: {snippet}"
+        t = tirith_approval_suffix(command, home=get_io_home())
+        if t:
+            return t
         return None
 
     async def execute(self, context: ToolContext, arguments: dict[str, object]) -> ToolResult:
         command = str(arguments.get("command", "")).strip()
         if not command:
             return ToolResult(content="No command provided.", is_error=True)
+        verdict = check_command_security(command, home=context.home)
+        if verdict.get("action") == "block":
+            msg = str(verdict.get("summary") or "blocked by Tirith").strip()
+            return ToolResult(content=f"Tirith blocked: {msg}" if msg else "Tirith blocked.", is_error=True)
         cwd = Path(str(arguments.get("cwd", context.cwd))).expanduser()
         process = await asyncio.create_subprocess_shell(
             command,
@@ -50,7 +60,26 @@ class BashTool(Tool):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await process.communicate()
+        cb = context.tool_output_callback
+        if cb is not None and process.stdout is not None and process.stderr is not None:
+
+            async def _drain(reader: asyncio.StreamReader, stream_name: str) -> bytes:
+                parts: list[bytes] = []
+                while True:
+                    chunk = await reader.read(4096)
+                    if not chunk:
+                        break
+                    parts.append(chunk)
+                    cb("bash", stream_name, chunk.decode("utf-8", errors="replace"))
+                return b"".join(parts)
+
+            stdout, stderr = await asyncio.gather(
+                _drain(process.stdout, "stdout"),
+                _drain(process.stderr, "stderr"),
+            )
+            await process.wait()
+        else:
+            stdout, stderr = await process.communicate()
         output = stdout.decode("utf-8", errors="replace")
         error = stderr.decode("utf-8", errors="replace")
         content = output.strip()

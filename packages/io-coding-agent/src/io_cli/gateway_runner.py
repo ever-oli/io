@@ -15,7 +15,9 @@ from .auth import auth_status
 from .commands import GATEWAY_KNOWN_COMMANDS, gateway_help_lines, resolve_command
 from .config import ensure_io_home, load_config, load_env, save_config
 from .cron import CronManager
+from .nudge_job import maybe_run_periodic_nudge
 from .gateway import GatewayManager
+from .models import apply_user_model_selection_to_config
 from .gateway_delivery import DeliveryRouter
 from .gateway_models import GatewayConfig, HomeChannel, Platform, PlatformConfig
 from .gateway_platforms import (
@@ -537,6 +539,35 @@ class GatewayRunner:
             )
             return True
 
+        if canonical == "gateway":
+            from .gateway_spawn import spawn_gateway_run_detached
+
+            parts = arguments.strip().split()
+            sub = parts[0].lower() if parts else "status"
+            if sub in ("start", "run"):
+                _pid, _log, msg = spawn_gateway_run_detached(self.home)
+            elif sub == "status":
+                msg = self._format_platform_status()
+            else:
+                msg = "Usage: /gateway start|run|status"
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                msg,
+                thread_id=source.thread_id,
+            )
+            return True
+
+        if canonical == "gauss":
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                "OpenGauss runs on the host: `io gauss chat` (or `io gauss <args>`). "
+                "Interactive TUI is not started from this chat.",
+                thread_id=source.thread_id,
+            )
+            return True
+
         if command.cli_only:
             await self._send_platform_message(
                 event.source.platform,
@@ -582,6 +613,66 @@ class GatewayRunner:
                 source.platform,
                 source.chat_id,
                 f"This chat is now the home channel for {source.platform.value}.",
+                thread_id=source.thread_id,
+            )
+            return True
+
+        if canonical == "lean":
+            from .lean import (
+                format_lean_doctor,
+                format_submit_result,
+                parse_lean_slash_arguments,
+                run_lean_draft,
+                run_lean_formalize,
+                run_lean_prove,
+                run_lean_submit,
+                run_lean_swarm,
+            )
+            from .lean_projects import handle_lean_project_slash
+
+            config = load_config(self.home)
+            gcwd = self._resolve_gateway_cwd()
+            try:
+                sub, statement, _extra, lean_backend = parse_lean_slash_arguments(arguments)
+            except ValueError as exc:
+                await self._send_platform_message(
+                    source.platform,
+                    source.chat_id,
+                    str(exc),
+                    thread_id=source.thread_id,
+                )
+                return True
+            if sub == "doctor":
+                text = format_lean_doctor(config, cwd=gcwd, home=self.home)
+            elif sub == "project":
+                try:
+                    text = handle_lean_project_slash(statement, home=self.home, cwd=gcwd)
+                except ValueError as exc:
+                    text = str(exc)
+            else:
+                runners = {
+                    "submit": run_lean_submit,
+                    "prove": run_lean_prove,
+                    "draft": run_lean_draft,
+                    "formalize": run_lean_formalize,
+                    "swarm": run_lean_swarm,
+                }
+                runner = runners[sub]
+                result = await asyncio.to_thread(
+                    runner,
+                    statement,
+                    config=config,
+                    cwd=gcwd,
+                    home=self.home,
+                    backend=lean_backend,
+                )
+                text = format_submit_result(result)
+            if len(text) > 3900:
+                text = text[:3890] + "\n…(truncated)"
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                text,
                 thread_id=source.thread_id,
             )
             return True
@@ -693,13 +784,17 @@ class GatewayRunner:
             if arguments:
                 selected = arguments.strip()
                 config, _runtime = self._resolve_runtime_state()
-                config.setdefault("model", {})
-                config["model"]["default"] = selected
+                env = {**load_env(self.home), **os.environ}
+                model_cfg = apply_user_model_selection_to_config(
+                    selected, home=self.home, config=config, env=env
+                )
+                config["model"] = model_cfg
                 save_config(config, self.home)
+                rid = str(model_cfg.get("default", selected))
                 await self._send_platform_message(
                     source.platform,
                     source.chat_id,
-                    f"Default model set to {selected}.",
+                    f"Default model set to {rid}.",
                     thread_id=source.thread_id,
                 )
                 return True
@@ -972,6 +1067,8 @@ class GatewayRunner:
         cron = CronManager(home=self.home)
         results = await asyncio.to_thread(cron.tick_sync)
         self._next_cron_tick_at = now + self.cron_interval
+        merged_config = load_config(self.home)
+        await asyncio.to_thread(maybe_run_periodic_nudge, self.home, merged_config)
         if results:
             return await self._deliver_cron_results(results)
         return results

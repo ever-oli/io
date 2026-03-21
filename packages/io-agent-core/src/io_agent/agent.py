@@ -4,14 +4,32 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from collections.abc import Callable
+from typing import Any, Awaitable
 
-from io_ai import ModelRegistry, stream_simple
-from io_ai.types import Usage
+from io_ai import ModelRegistry, stream as ai_stream, stream_simple
+from io_ai.cost import CostTracker
+from io_ai.types import ToolCall, Usage
 
 from .compressor import ContextCompressor
-from .events import AgentEndEvent, AgentStartEvent, CompactionEvent, MessageEvent, ToolCallEndEvent, ToolCallStartEvent, TurnStartEvent
-from .tools import GLOBAL_TOOL_REGISTRY, ToolContext, ToolRegistry, ToolsetResolver, execute_tool_batch
+from .events import (
+    AgentEndEvent,
+    AgentStartEvent,
+    CompactionEvent,
+    MessageDeltaEvent,
+    MessageEvent,
+    ToolCallEndEvent,
+    ToolCallStartEvent,
+    TurnStartEvent,
+)
+from .tools import (
+    GLOBAL_TOOL_REGISTRY,
+    ToolContext,
+    ToolOutputCallback,
+    ToolRegistry,
+    ToolsetResolver,
+    execute_tool_batch,
+)
 from .types import AgentRunResult
 
 
@@ -48,11 +66,15 @@ class Agent:
         history: list[dict[str, Any]] | None = None,
         env: dict[str, str] | None = None,
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
+        stream_tokens: bool = False,
+        tool_output_callback: ToolOutputCallback | None = None,
+        tool_context_metadata: dict[str, Any] | None = None,
     ) -> AgentRunResult:
         final_text = ""
         messages: list[dict[str, Any]] = []
         usage = Usage()
         iterations = 0
+        interrupted = False
         async for event in self.run_stream(
             prompt,
             model=model,
@@ -69,6 +91,9 @@ class Agent:
             session_store=session_store,
             history=history,
             env=env,
+            stream_tokens=stream_tokens,
+            tool_output_callback=tool_output_callback,
+            tool_context_metadata=tool_context_metadata,
         ):
             if on_event:
                 on_event(event.type, dict(event.payload or {}))
@@ -78,7 +103,14 @@ class Agent:
                 usage = event.usage
                 messages = event.payload.get("messages", messages)
                 iterations = int(event.payload.get("iterations", 0))
-        return AgentRunResult(final_text=final_text, messages=messages, usage=usage, iterations=iterations)
+                interrupted = bool(event.payload.get("interrupted", False))
+        return AgentRunResult(
+            final_text=final_text,
+            messages=messages,
+            usage=usage,
+            iterations=iterations,
+            interrupted=interrupted,
+        )
 
     async def run_stream(
         self,
@@ -98,6 +130,9 @@ class Agent:
         session_store=None,
         history: list[dict[str, Any]] | None = None,
         env: dict[str, str] | None = None,
+        stream_tokens: bool = False,
+        tool_output_callback: ToolOutputCallback | None = None,
+        tool_context_metadata: dict[str, Any] | None = None,
     ):
         cwd = cwd or Path.cwd()
         home = home or Path.home()
@@ -105,12 +140,16 @@ class Agent:
         messages = list(history or [])
         messages.append({"role": "user", "content": prompt})
         yield AgentStartEvent(payload={"prompt": prompt, "model": model})
+        self.interrupt_requested = False
 
         selected_tool_names = self.toolset_resolver.resolve(toolsets, registry=self.tool_registry)
         tool_schemas = self.tool_registry.schemas(selected_tool_names)
         usage = Usage()
+        cost_tracker = CostTracker()
+        last_iteration = 0
 
         for iteration in range(1, self.max_iterations + 1):
+            last_iteration = iteration
             if self.interrupt_requested:
                 break
             if self.compressor.should_compress(messages):
@@ -125,32 +164,91 @@ class Agent:
                 prepared_messages = await maybe_messages if hasattr(maybe_messages, "__await__") else maybe_messages
 
             yield TurnStartEvent(payload={"iteration": iteration})
-            response = await stream_simple(
-                prepared_messages,
-                model=model,
-                provider=provider,
-                base_url=base_url,
-                tools=tool_schemas,
-                registry=self.model_registry,
-            )
-            usage = response.usage
-            assistant_message = {
-                "role": "assistant",
-                "content": response.content,
-                "tool_calls": [
-                    {"id": call.id, "name": call.name, "arguments": call.arguments}
-                    for call in response.tool_calls
-                ],
-            }
-            messages.append(assistant_message)
-            if response.content:
-                yield MessageEvent(payload={"content": response.content, "iteration": iteration})
 
-            if not response.tool_calls:
-                break
+            response_content = ""
+            response_tool_calls: list[Any] = []
+            if stream_tokens:
+                async for event in ai_stream(
+                    prepared_messages,
+                    model=model,
+                    provider=provider,
+                    base_url=base_url,
+                    tools=tool_schemas,
+                    registry=self.model_registry,
+                ):
+                    if self.interrupt_requested:
+                        break
+                    et = event.type
+                    if et == "message_delta" and getattr(event, "text", ""):
+                        response_content += event.text
+                        yield MessageDeltaEvent(payload={"delta": event.text, "iteration": iteration})
+                    elif et == "tool_call" and event.tool_call is not None:
+                        response_tool_calls.append(event.tool_call)
+                    elif et == "message_end" and event.response is not None:
+                        r = event.response
+                        if r.content:
+                            response_content = r.content
+                        if r.tool_calls:
+                            response_tool_calls = list(r.tool_calls)
+                        usage = cost_tracker.estimate(r.model or model or "mock/io-test", r.usage)
+
+                normalized_calls: list[ToolCall] = []
+                seen: set[str] = set()
+                for call in response_tool_calls:
+                    cid = getattr(call, "id", None) or ""
+                    if cid in seen:
+                        continue
+                    seen.add(cid)
+                    normalized_calls.append(
+                        call
+                        if isinstance(call, ToolCall)
+                        else ToolCall(
+                            id=str(getattr(call, "id", "call")),
+                            name=str(getattr(call, "name", "")),
+                            arguments=dict(getattr(call, "arguments", {}) or {}),
+                        )
+                    )
+                assistant_message = {
+                    "role": "assistant",
+                    "content": response_content,
+                    "tool_calls": [
+                        {"id": call.id, "name": call.name, "arguments": call.arguments} for call in normalized_calls
+                    ],
+                }
+                messages.append(assistant_message)
+                if response_content:
+                    yield MessageEvent(payload={"content": response_content, "iteration": iteration})
+                if not normalized_calls:
+                    break
+                tool_calls_iterable = normalized_calls
+            else:
+                response = await stream_simple(
+                    prepared_messages,
+                    model=model,
+                    provider=provider,
+                    base_url=base_url,
+                    tools=tool_schemas,
+                    registry=self.model_registry,
+                )
+                usage = response.usage
+                assistant_message = {
+                    "role": "assistant",
+                    "content": response.content,
+                    "tool_calls": [
+                        {"id": call.id, "name": call.name, "arguments": call.arguments}
+                        for call in response.tool_calls
+                    ],
+                }
+                messages.append(assistant_message)
+                if response.content:
+                    yield MessageEvent(payload={"content": response.content, "iteration": iteration})
+
+                if not response.tool_calls:
+                    break
+                tool_calls_iterable = response.tool_calls
 
             batch = []
-            for tool_call in response.tool_calls:
+            for tool_call in tool_calls_iterable:
                 arguments = dict(tool_call.arguments)
                 if before_tool_call:
                     decision = before_tool_call(tool_call.name, arguments)
@@ -170,6 +268,7 @@ class Agent:
             if not batch:
                 continue
 
+            meta = dict(tool_context_metadata or {})
             context = ToolContext(
                 cwd=cwd,
                 home=home,
@@ -177,6 +276,8 @@ class Agent:
                 session_db=session_db,
                 session_store=session_store,
                 approval_callback=approval_callback,
+                tool_output_callback=tool_output_callback,
+                metadata=meta,
             )
             results = await execute_tool_batch(batch, context=context)
             for call_id, result in results:
@@ -193,5 +294,12 @@ class Agent:
                 messages.append(payload)
                 yield ToolCallEndEvent(payload={"tool": tool_name, "content": payload["content"]}, result=result)
 
-        yield AgentEndEvent(payload={"messages": messages, "iterations": iteration}, usage=usage)
+        yield AgentEndEvent(
+            payload={
+                "messages": messages,
+                "iterations": last_iteration,
+                "interrupted": bool(self.interrupt_requested),
+            },
+            usage=usage,
+        )
 

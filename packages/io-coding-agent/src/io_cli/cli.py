@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import signal
 from pathlib import Path
 import sys
 
@@ -23,7 +24,9 @@ from .gateway_runner import run_gateway
 from .main import build_theme, format_prompt_result, run_prompt
 from .repl_prompt import build_repl_prompt_extras
 from .repl_slash import handle_repl_slash_command
-from .models import list_models
+from io_ai import fuzzy_filter
+
+from .models import format_available_models_table, list_auth_available_model_refs, list_models
 from .pairing import pairing_command
 from .skills import discover_skills, inspect_skill, save_skill_toggle, search_skills
 from .session import SessionManager
@@ -49,9 +52,25 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--json", action="store_true", help="Emit JSON output")
     ask.add_argument("--no-extensions", action="store_true", help="Skip loading extensions")
 
-    models = subparsers.add_parser("models", help="List known models")
-    models.add_argument("--provider", help="Filter to a provider")
-    models.add_argument("--verbose", action="store_true", help="Include metadata")
+    models = subparsers.add_parser(
+        "models",
+        help="List models: default = configured providers only (pi-style table); --all = full catalog",
+    )
+    models.add_argument("--provider", help="Filter to one provider id")
+    models.add_argument(
+        "--all",
+        action="store_true",
+        dest="models_catalog_all",
+        help="List the full static/dynamic catalog (not restricted to providers with API keys)",
+    )
+    models.add_argument(
+        "--search",
+        dest="models_search",
+        default="",
+        metavar="QUERY",
+        help="Fuzzy filter on provider + model id (matches pi-tui token/subsequence scoring)",
+    )
+    models.add_argument("--verbose", action="store_true", help="Emit JSON with metadata (--all semantics)")
 
     sessions = subparsers.add_parser("sessions", help="Manage session files")
     sessions.add_argument("--cwd", type=Path, default=Path.cwd())
@@ -143,6 +162,183 @@ def build_parser() -> argparse.ArgumentParser:
     gateway_run.add_argument("--poll-interval", type=float, default=2.0)
     gateway_run.add_argument("--max-loops", type=int)
 
+    lean = subparsers.add_parser(
+        "lean",
+        help="Lean / Aristotle subprocess bridge (lean.*_argv; see io gauss for OpenGauss)",
+    )
+    lean_sub = lean.add_subparsers(dest="lean_command", required=True)
+    lean_doctor = lean_sub.add_parser("doctor", help="Check uv / aristotle availability")
+    lean_doctor.add_argument("--cwd", type=Path, default=Path.cwd(), help="Working directory for checks")
+    lean_submit = lean_sub.add_parser("submit", help="Submit a theorem statement to Aristotle")
+    lean_submit.add_argument(
+        "statement",
+        nargs="+",
+        help="Theorem or proof goal (quote multi-word statements in the shell)",
+    )
+    lean_submit.add_argument("--cwd", type=Path, default=Path.cwd(), help="Working directory for uv")
+    lean_submit.add_argument(
+        "--project-dir",
+        type=Path,
+        default=None,
+        help="Lean project root (default: config lean.default_project_dir relative to --cwd)",
+    )
+    lean_submit.add_argument(
+        "--project",
+        dest="lean_project",
+        default=None,
+        metavar="NAME",
+        help="Named project from ~/.io/lean/registry.yaml (io lean project add …)",
+    )
+    lean_submit.add_argument(
+        "--backend",
+        dest="lean_backend",
+        default=None,
+        metavar="NAME",
+        help="Named prover from lean.backends (see io lean backends list)",
+    )
+    lean_submit.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print argv JSON only; do not execute",
+    )
+    lean_prove = lean_sub.add_parser(
+        "prove",
+        help="Lean prove (lean.prove_argv; default uv run aristotle prove)",
+    )
+    lean_prove.add_argument(
+        "statement",
+        nargs="+",
+        help="Theorem scope or statement (depends on your prove backend)",
+    )
+    lean_prove.add_argument("--cwd", type=Path, default=Path.cwd(), help="Working directory for uv")
+    lean_prove.add_argument("--project-dir", type=Path, default=None)
+    lean_prove.add_argument(
+        "--project",
+        dest="lean_project",
+        default=None,
+        metavar="NAME",
+        help="Named project from ~/.io/lean/registry.yaml",
+    )
+    lean_prove.add_argument(
+        "--backend",
+        dest="lean_backend",
+        default=None,
+        metavar="NAME",
+        help="Named prover from lean.backends",
+    )
+    lean_prove.add_argument("--dry-run", action="store_true")
+
+    lean_draft = lean_sub.add_parser(
+        "draft",
+        help="Lean draft (set lean.draft_argv)",
+    )
+    lean_draft.add_argument("statement", nargs="+", help="Draft prompt or scope for your backend")
+    lean_draft.add_argument("--cwd", type=Path, default=Path.cwd())
+    lean_draft.add_argument("--project-dir", type=Path, default=None)
+    lean_draft.add_argument(
+        "--project",
+        dest="lean_project",
+        default=None,
+        metavar="NAME",
+        help="Named project from ~/.io/lean/registry.yaml",
+    )
+    lean_draft.add_argument(
+        "--backend",
+        dest="lean_backend",
+        default=None,
+        metavar="NAME",
+    )
+    lean_draft.add_argument("--dry-run", action="store_true")
+
+    lean_formalize = lean_sub.add_parser(
+        "formalize",
+        help="Lean formalize (lean.formalize_argv)",
+    )
+    lean_formalize.add_argument("statement", nargs="+", help="Formalize goal for your backend")
+    lean_formalize.add_argument("--cwd", type=Path, default=Path.cwd())
+    lean_formalize.add_argument("--project-dir", type=Path, default=None)
+    lean_formalize.add_argument(
+        "--project",
+        dest="lean_project",
+        default=None,
+        metavar="NAME",
+    )
+    lean_formalize.add_argument(
+        "--backend",
+        dest="lean_backend",
+        default=None,
+        metavar="NAME",
+    )
+    lean_formalize.add_argument("--dry-run", action="store_true")
+
+    lean_swarm = lean_sub.add_parser(
+        "swarm",
+        help="Lean swarm hook (lean.swarm_argv)",
+    )
+    lean_swarm.add_argument("statement", nargs="+", help="Swarm / orchestration payload")
+    lean_swarm.add_argument("--cwd", type=Path, default=Path.cwd())
+    lean_swarm.add_argument("--project-dir", type=Path, default=None)
+    lean_swarm.add_argument(
+        "--project",
+        dest="lean_project",
+        default=None,
+        metavar="NAME",
+    )
+    lean_swarm.add_argument(
+        "--backend",
+        dest="lean_backend",
+        default=None,
+        metavar="NAME",
+    )
+    lean_swarm.add_argument("--dry-run", action="store_true")
+
+    lean_be = lean_sub.add_parser(
+        "backends",
+        help="Show lean.backends (multi-prover / Aristotle vs Gauss CLIs)",
+    )
+    lean_be_sub = lean_be.add_subparsers(dest="lean_backends_command", required=True)
+    lean_be_sub.add_parser("list", help="Print configured backend names and default")
+
+    lean_proj = lean_sub.add_parser(
+        "project",
+        help="Manage named Lean roots (OpenGauss-style project pins)",
+    )
+    lean_proj.add_argument("--cwd", type=Path, default=Path.cwd(), help="Resolve relative paths against this cwd")
+    lean_proj_sub = lean_proj.add_subparsers(dest="lean_project_command", required=True)
+    lean_proj_sub.add_parser("list", help="List registered projects and current pin")
+    lean_proj_sub.add_parser("show", help="Dump registry YAML")
+    lean_proj_use = lean_proj_sub.add_parser("use", help="Set the current default project name")
+    lean_proj_use.add_argument("name")
+    lean_proj_add = lean_proj_sub.add_parser("add", help="Register a name -> path")
+    lean_proj_add.add_argument("name")
+    lean_proj_add.add_argument("path")
+    lean_proj_add.add_argument(
+        "--current",
+        action="store_true",
+        help="Also set this project as current (for lean.prefer_registry_current)",
+    )
+    lean_proj_rm = lean_proj_sub.add_parser("remove", help="Remove a registered name")
+    lean_proj_rm.add_argument("name")
+
+    gauss = subparsers.add_parser(
+        "gauss",
+        help="Run OpenGauss CLI (gauss chat, gateway, etc.) — pip install gauss-agent",
+    )
+    gauss.add_argument(
+        "gauss_args",
+        nargs=argparse.REMAINDER,
+        default=[],
+        help="Arguments passed to gauss (e.g. chat, gateway run, --help)",
+    )
+
+    security = subparsers.add_parser("security", help="Security utilities (Tirith installer, …)")
+    security_sub = security.add_subparsers(dest="security_command", required=True)
+    sec_tirith = security_sub.add_parser(
+        "tirith-install",
+        help="Install tirith into ~/.io/bin via cargo install --root ~/.io (Rust crate)",
+    )
+    sec_tirith.add_argument("--home", type=Path, default=None, help="IO home directory (default ~/.io)")
+
     subparsers.add_parser("acp", help="Run the Agent Client Protocol adapter")
 
     pairing = subparsers.add_parser("pairing", help="Manage DM pairing approvals")
@@ -191,6 +387,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("commands", help="List slash commands from the ported IO registry")
 
+    soul = subparsers.add_parser(
+        "soul",
+        help="Show which SOUL/soul.md is loaded (debug persona for chat/gateway)",
+    )
+    soul_sub = soul.add_subparsers(dest="soul_command", required=True)
+    soul_status = soul_sub.add_parser(
+        "status",
+        help="Resolved path, source (workspace vs io_home), and first lines preview",
+    )
+    soul_status.add_argument(
+        "--cwd",
+        type=Path,
+        default=Path.cwd(),
+        help="Working directory to resolve soul (gateway uses $HOME unless you set soul.workspace_root)",
+    )
+
     chat = subparsers.add_parser("chat", help="Start an interactive prompt loop")
     chat.add_argument("--model", help="Override model id")
     chat.add_argument("--provider", help="Override provider")
@@ -203,6 +415,13 @@ def build_parser() -> argparse.ArgumentParser:
     repl.add_argument("--cwd", type=Path, help="Workspace path", default=Path.cwd())
     repl.add_argument("--no-extensions", action="store_true", help="Skip loading extensions")
 
+    research = subparsers.add_parser("research", help="Trajectory / RL export helpers (lightweight, no extra deps)")
+    research_sub = research.add_subparsers(dest="research_command", required=True)
+    research_export = research_sub.add_parser("export", help="Export indexed sessions from ~/.io/state.db to JSONL")
+    research_export.add_argument("--home", type=Path, default=None, help="IO home directory (default: ~/.io)")
+    research_export.add_argument("--out", type=Path, required=True, help="Output JSONL file path")
+    research_export.add_argument("--limit", type=int, default=200, help="Maximum recent sessions to export")
+
     return parser
 
 
@@ -212,6 +431,13 @@ def _run_repl(args: argparse.Namespace) -> int:
     config = load_config(home)
     runtime = resolve_runtime(config=config, home=home, env={**load_env(home), **os.environ})
     prefetch_update_check(home=home)
+    display_cfg = config.get("display", {}) or {}
+    repl_multiline = bool(display_cfg.get("repl_multiline", True))
+    repl_mode = str(display_cfg.get("repl_multiline_mode", "single_ctrl_j") or "single_ctrl_j").lower()
+    if repl_mode not in {"meta_submit", "single_ctrl_j", "buffer"}:
+        repl_mode = "single_ctrl_j"
+    buffer_sentinel = str(display_cfg.get("repl_buffer_sentinel", "END") or "END")
+    show_stream = bool(display_cfg.get("streaming", False))
     ui.console.print(
         build_welcome_banner(
             ui.console,
@@ -224,12 +450,39 @@ def _run_repl(args: argparse.Namespace) -> int:
     repl_completer, repl_auto_suggest = build_repl_prompt_extras(home, args.cwd.resolve())
     ui.console.print(
         "[dim]Tip: type [bold]/[/] then [bold]Tab[/] for slash commands; "
-        "[bold]/model[/] stages providers→models; [bold]/skill-slug[/] inlines that skill’s SKILL.md for the agent "
+        "[bold]/model[/] opens a line with fuzzy [bold]Tab[/] dropdown (configured providers); "
+        "[bold]/model anthropic:claude-…[/] sets in one shot; [bold]/skill-slug[/] inlines that skill’s SKILL.md "
         "(optional text after the slug is the user request).[/]"
     )
+    if repl_mode == "buffer":
+        ui.console.print(
+            f"[dim]Multiline buffer: lines until a lone [bold]{buffer_sentinel}[/] line submits "
+            f"(good for pastes).[/]"
+        )
+    elif repl_mode == "meta_submit" and repl_multiline:
+        ui.console.print(
+            "[dim]Multiline (full editor): [bold]Enter[/] newline; "
+            "[bold]Esc Enter[/] or [bold]Option+Enter[/] (Meta+Enter) to submit.[/]"
+        )
+    elif repl_mode == "single_ctrl_j" and repl_multiline:
+        ui.console.print(
+            "[dim]Pi-style input: [bold]Enter[/] submits; [bold]Ctrl-J[/] inserts newline "
+            "(like many shells).[/]"
+        )
+    pending_followup: str | None = None
     while True:
         try:
-            prompt = ui.prompt(completer=repl_completer, auto_suggest=repl_auto_suggest)
+            if pending_followup is not None:
+                prompt = pending_followup
+                pending_followup = None
+            else:
+                prompt = ui.prompt(
+                    completer=repl_completer,
+                    auto_suggest=repl_auto_suggest,
+                    multiline=repl_multiline,
+                    multiline_mode=repl_mode,  # type: ignore[arg-type]
+                    buffer_sentinel=buffer_sentinel,
+                )
         except (EOFError, KeyboardInterrupt):
             break
         if not prompt.strip():
@@ -245,6 +498,7 @@ def _run_repl(args: argparse.Namespace) -> int:
                     repl_args=args,
                     load_extensions=not args.no_extensions,
                     on_event=None,
+                    repl_interactive=True,
                 )
             )
             if handled:
@@ -254,28 +508,77 @@ def _run_repl(args: argparse.Namespace) -> int:
                 prompt = slash_message
 
         ui.console.print("[dim]Φ thinking...[/]")
-        with ui.console.status("[bold #FFBF00]Φ thinking...[/]") as thinking_status:
-            def _on_event(event_type: str, payload: dict[str, object]) -> None:
-                if event_type == "turn_start":
-                    iteration = int(payload.get("iteration", 0))
-                    thinking_status.update(f"[bold #FFBF00]Φ thinking...[/] [dim]turn {iteration}[/]")
-                elif event_type == "tool_call_start":
-                    tool = str(payload.get("tool", "tool"))
-                    thinking_status.update(f"[bold #FFBF00]Φ working[/] [dim]running {tool}...[/]")
-                elif event_type == "tool_call_end":
-                    tool = str(payload.get("tool", "tool"))
-                    thinking_status.update(f"[bold #FFBF00]Φ thinking...[/] [dim]finished {tool}[/]")
-            result = asyncio.run(
-                run_prompt(
-                    prompt,
-                    cwd=args.cwd,
-                    model=args.model,
-                    provider=args.provider,
-                    load_extensions=not args.no_extensions,
-                    on_event=_on_event,
+        stream_state: dict[str, bool] = {"had_delta": False, "got_token_delta": False}
+        interrupt_registry: dict[str, object] = {}
+
+        def _sigint(_signum: int, _frame: object | None) -> None:
+            agent = interrupt_registry.get("agent")
+            if agent is not None and hasattr(agent, "interrupt_requested"):
+                agent.interrupt_requested = True  # type: ignore[attr-defined]
+
+        prev_sig = signal.signal(signal.SIGINT, _sigint)
+        try:
+            with ui.console.status("[bold #FFBF00]Φ thinking...[/]") as thinking_status:
+
+                def _on_event(event_type: str, payload: dict[str, object]) -> None:
+                    if event_type == "turn_start":
+                        stream_state["had_delta"] = False
+                        iteration = int(payload.get("iteration", 0))
+                        thinking_status.update(f"[bold #FFBF00]Φ thinking...[/] [dim]turn {iteration}[/]")
+                    elif event_type == "message_delta" and show_stream:
+                        delta = str(payload.get("delta", "") or "")
+                        if delta:
+                            ui.console.print(delta, end="")
+                            stream_state["had_delta"] = True
+                            stream_state["got_token_delta"] = True
+                    elif event_type == "tool_call_start":
+                        if show_stream and stream_state.get("had_delta"):
+                            ui.console.print()
+                            stream_state["had_delta"] = False
+                        tool = str(payload.get("tool", "tool"))
+                        thinking_status.update(f"[bold #FFBF00]Φ working[/] [dim]running {tool}...[/]")
+                    elif event_type == "tool_output_delta" and show_stream:
+                        ui.console.print(str(payload.get("delta", "") or ""), end="", style="dim")
+                    elif event_type == "tool_call_end":
+                        tool = str(payload.get("tool", "tool"))
+                        thinking_status.update(f"[bold #FFBF00]Φ thinking...[/] [dim]finished {tool}[/]")
+
+                result = asyncio.run(
+                    run_prompt(
+                        prompt,
+                        cwd=args.cwd,
+                        model=args.model,
+                        provider=args.provider,
+                        load_extensions=not args.no_extensions,
+                        on_event=_on_event,
+                        interrupt_registry=interrupt_registry,
+                    )
                 )
-            )
-        ui.render_message("assistant", format_prompt_result(result))
+        finally:
+            signal.signal(signal.SIGINT, prev_sig)
+
+        if show_stream and stream_state.get("had_delta"):
+            ui.console.print()
+
+        if show_stream:
+            if not stream_state.get("got_token_delta"):
+                ui.console.print(format_prompt_result(result))
+        else:
+            ui.render_message("assistant", format_prompt_result(result))
+
+        if result.interrupted:
+            ui.console.print("[yellow]Interrupted.[/] Enter a follow-up to continue (empty to skip).")
+            try:
+                nxt = ui.prompt(
+                    "[dim]Follow-up ›[/] ",
+                    multiline=repl_multiline,
+                    multiline_mode=repl_mode,  # type: ignore[arg-type]
+                    buffer_sentinel=buffer_sentinel,
+                )
+            except (EOFError, KeyboardInterrupt):
+                break
+            if nxt.strip():
+                pending_followup = nxt
     return 0
 
 
@@ -300,12 +603,29 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "models":
-        payload = list_models(provider=args.provider, detailed=args.verbose)
+        home = ensure_io_home(None)
+        cfg = load_config(home)
         if args.verbose:
+            payload = list_models(provider=args.provider, detailed=True)
             print(json.dumps(payload, indent=2, sort_keys=True))
-        else:
+            return 0
+        if args.models_catalog_all:
+            payload = list_models(provider=args.provider, detailed=False)
             for model in payload:
                 print(model)
+            return 0
+
+        refs = list_auth_available_model_refs(home=home, config=cfg, provider=args.provider)
+        q = str(args.models_search or "").strip()
+        if q:
+            refs = fuzzy_filter(refs, q, lambda m: f"{m.provider} {m.remote_id} {m.id}")
+        if not refs:
+            print(
+                "No models available for configured providers. "
+                "Add API keys (see `io auth status`, ~/.io/.env), or use `io models --all` for the full catalog."
+            )
+        else:
+            print(format_available_models_table(refs))
         return 0
 
     if args.command == "sessions":
@@ -339,6 +659,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(format_prompt_result(result))
         return 0
+
+    if args.command == "soul":
+        from .config import soul_status_payload
+
+        if args.soul_command == "status":
+            home = ensure_io_home(None)
+            payload = soul_status_payload(home=home, cwd=args.cwd)
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        return 1
 
     if args.command == "doctor":
         print(json.dumps(doctor_report(cwd=args.cwd), indent=2, sort_keys=True))
@@ -473,6 +803,157 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+    if args.command == "gauss":
+        from .gauss import run_gauss_passthrough
+
+        home = ensure_io_home(None)
+        config = load_config(home)
+        gauss_args = getattr(args, "gauss_args", []) or []
+        return run_gauss_passthrough(gauss_args, config=config, home=home)
+
+    if args.command == "security":
+        if args.security_command == "tirith-install":
+            from .security.tirith import install_tirith_via_cargo
+
+            home = ensure_io_home(args.home)
+            config = load_config(home)
+            sec = config.get("security") if isinstance(config.get("security"), dict) else {}
+            tir = sec.get("tirith") if isinstance(sec.get("tirith"), dict) else {}
+            pkg = str(tir.get("cargo_install_package", "tirith"))
+            code, dest, out = install_tirith_via_cargo(home, package=pkg)
+            if out:
+                print(out)
+            if code == 0:
+                print(f"tirith installed (expected path): {dest}")
+                return 0
+            print(f"cargo install failed with exit {code}", file=sys.stderr)
+            return 1
+        return 1
+
+    if args.command == "lean":
+        from .lean import (
+            format_lean_backends_list,
+            format_lean_doctor,
+            format_submit_result,
+            run_lean_draft,
+            run_lean_formalize,
+            run_lean_prove,
+            run_lean_submit,
+            run_lean_swarm,
+        )
+        from . import lean_projects as lean_projects_mod
+
+        home = ensure_io_home(None)
+        config = load_config(home)
+        if args.lean_command == "backends":
+            if args.lean_backends_command == "list":
+                print(format_lean_backends_list(config))
+                return 0
+            return 1
+        if args.lean_command == "doctor":
+            print(format_lean_doctor(config, cwd=args.cwd, home=home))
+            return 0
+        if args.lean_command == "project":
+            lp = lean_projects_mod
+            cwd = args.cwd
+            try:
+                cmd = args.lean_project_command
+                if cmd == "list":
+                    print(lp.format_registry_list(home, cwd=cwd))
+                elif cmd == "show":
+                    print(lp.cmd_project_show(home, cwd=cwd))
+                elif cmd == "use":
+                    print(lp.cmd_project_use(home, args.name))
+                elif cmd == "add":
+                    print(
+                        lp.cmd_project_add(
+                            home,
+                            args.name,
+                            args.path,
+                            cwd=cwd,
+                            set_current=bool(args.current),
+                        )
+                    )
+                elif cmd == "remove":
+                    print(lp.cmd_project_remove(home, args.name))
+                else:
+                    return 1
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            return 0
+        if args.lean_command == "submit":
+            statement = " ".join(args.statement)
+            result = run_lean_submit(
+                statement,
+                config=config,
+                cwd=args.cwd,
+                home=home,
+                project_dir=args.project_dir,
+                project_name=args.lean_project,
+                backend=args.lean_backend,
+                dry_run=args.dry_run,
+            )
+            print(format_submit_result(result))
+            return 0 if result.exit_code == 0 else 1
+        if args.lean_command == "prove":
+            statement = " ".join(args.statement)
+            result = run_lean_prove(
+                statement,
+                config=config,
+                cwd=args.cwd,
+                home=home,
+                project_dir=args.project_dir,
+                project_name=args.lean_project,
+                backend=args.lean_backend,
+                dry_run=args.dry_run,
+            )
+            print(format_submit_result(result))
+            return 0 if result.exit_code == 0 else 1
+        if args.lean_command == "draft":
+            statement = " ".join(args.statement)
+            result = run_lean_draft(
+                statement,
+                config=config,
+                cwd=args.cwd,
+                home=home,
+                project_dir=args.project_dir,
+                project_name=args.lean_project,
+                backend=args.lean_backend,
+                dry_run=args.dry_run,
+            )
+            print(format_submit_result(result))
+            return 0 if result.exit_code == 0 else 1
+        if args.lean_command == "formalize":
+            statement = " ".join(args.statement)
+            result = run_lean_formalize(
+                statement,
+                config=config,
+                cwd=args.cwd,
+                home=home,
+                project_dir=args.project_dir,
+                project_name=args.lean_project,
+                backend=args.lean_backend,
+                dry_run=args.dry_run,
+            )
+            print(format_submit_result(result))
+            return 0 if result.exit_code == 0 else 1
+        if args.lean_command == "swarm":
+            statement = " ".join(args.statement)
+            result = run_lean_swarm(
+                statement,
+                config=config,
+                cwd=args.cwd,
+                home=home,
+                project_dir=args.project_dir,
+                project_name=args.lean_project,
+                backend=args.lean_backend,
+                dry_run=args.dry_run,
+            )
+            print(format_submit_result(result))
+            return 0 if result.exit_code == 0 else 1
+        return 1
+
     if args.command == "acp":
         from .acp_adapter.entry import main as acp_main
 
@@ -539,6 +1020,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "commands":
         print(json.dumps(COMMANDS_BY_CATEGORY, indent=2, sort_keys=True))
         return 0
+
+    if args.command == "research":
+        from .trajectory_export import export_trajectories_jsonl
+
+        if args.research_command == "export":
+            h = ensure_io_home(args.home)
+            lines = export_trajectories_jsonl(home=h, out=args.out, limit_sessions=args.limit)
+            print(f"Exported {lines} sessions to {args.out}")
+            return 0
+        return 1
 
     if args.command in {"chat", "repl"}:
         return _run_repl(args)

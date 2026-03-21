@@ -10,7 +10,9 @@ from pathlib import Path
 
 from io_agent import GLOBAL_TOOL_REGISTRY, Tool, ToolContext, ToolResult
 
+from ..config import get_io_home
 from ..environments import EnvironmentConfigurationError, create_environment, resolve_terminal_environment
+from ..security.tirith import check_command_security, tirith_approval_suffix
 from .process_runtime import process_registry
 from .shell import DANGEROUS_SNIPPETS
 
@@ -128,12 +130,26 @@ class TerminalCompatTool(Tool):
         for snippet in DANGEROUS_SNIPPETS:
             if snippet in command:
                 return f"Command requires approval because it matches a dangerous pattern: {snippet}"
+        t = tirith_approval_suffix(command, home=get_io_home())
+        if t:
+            return t
         return None
 
     async def execute(self, context: ToolContext, arguments: dict[str, object]) -> ToolResult:
         command = str(arguments.get("command", "")).strip()
         if not command:
             return ToolResult(content="No command provided.", is_error=True)
+
+        verdict = check_command_security(command, home=context.home)
+        if verdict.get("action") == "block":
+            msg = str(verdict.get("summary") or "blocked by Tirith").strip()
+            return ToolResult(
+                content=json.dumps(
+                    {"error": (f"Tirith blocked: {msg}" if msg else "Tirith blocked.")},
+                    ensure_ascii=False,
+                ),
+                is_error=True,
+            )
 
         background = bool(arguments.get("background", False))
         task_id = str(context.metadata.get("task_id", "") or "")
@@ -187,12 +203,20 @@ class TerminalCompatTool(Tool):
                 }
             )
 
+        stream_cb = None
+        if context.tool_output_callback is not None:
+            out_cb = context.tool_output_callback
+
+            def stream_cb(stream_name: str, chunk: str) -> None:
+                out_cb("terminal", stream_name, chunk)
+
         try:
             result = await asyncio.to_thread(
                 environment.execute,
                 command,
                 cwd=execution_cwd,
                 timeout=request.timeout,
+                stream_callback=stream_cb,
             )
         except EnvironmentConfigurationError as exc:
             return ToolResult(content=json.dumps({"error": str(exc)}), is_error=True)

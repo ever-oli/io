@@ -28,6 +28,7 @@ class PromptResult:
     messages: list[dict[str, Any]]
     loaded_extensions: list[str]
     usage: Usage = field(default_factory=Usage)
+    interrupted: bool = False
 
 
 def _default_approval_callback(_tool_name: str, _arguments: dict[str, Any], _reason: str) -> bool:
@@ -64,6 +65,7 @@ async def run_prompt(
     env_overrides: dict[str, str] | None = None,
     session_source: str = "cli",
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    interrupt_registry: dict[str, Any] | None = None,
 ) -> PromptResult:
     cwd = (cwd or Path.cwd()).resolve()
     home = ensure_io_home(home)
@@ -98,7 +100,7 @@ async def run_prompt(
         if isinstance(result, dict) and result.get("text"):
             prompt = str(result["text"])
 
-    system_prompt = load_soul(home)
+    system_prompt = load_soul(home, cwd=cwd, config=config)
     memories = memory_snapshot(home)
     if memories:
         system_prompt = f"{system_prompt.strip()}\n\n{memories}"
@@ -147,6 +149,16 @@ async def run_prompt(
         compressor=_build_compressor(config),
         max_iterations=int(config.get("agent", {}).get("max_turns", 8)),
     )
+    if interrupt_registry is not None:
+        interrupt_registry["agent"] = agent
+    display_cfg = config.get("display") if isinstance(config.get("display"), dict) else {}
+    stream_tokens = bool(display_cfg.get("streaming", False))
+    stream_tools = bool(display_cfg.get("stream_tool_output", True))
+
+    def _tool_output_cb(tool_name: str, stream: str, chunk: str) -> None:
+        if on_event:
+            on_event("tool_output_delta", {"tool": tool_name, "stream": stream, "delta": chunk})
+
     result = await agent.run(
         prompt,
         model=runtime.model,
@@ -163,6 +175,14 @@ async def run_prompt(
         history=initial_messages,
         env=env,
         on_event=on_event,
+        stream_tokens=stream_tokens,
+        tool_output_callback=_tool_output_cb if stream_tools else None,
+        tool_context_metadata={
+            "task_id": env.get("IO_SESSION_ID", ""),
+            "runtime_model": runtime.model,
+            "runtime_provider": runtime.provider,
+            "runtime_base_url": runtime.base_url,
+        },
     )
 
     new_messages = result.messages[baseline:]
@@ -202,6 +222,7 @@ async def run_prompt(
         messages=new_messages,
         loaded_extensions=loaded_extensions,
         usage=result.usage,
+        interrupted=result.interrupted,
     )
 
 

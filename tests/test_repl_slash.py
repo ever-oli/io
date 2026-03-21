@@ -31,6 +31,32 @@ def test_repl_slash_reasoning_sets_config(tmp_path: Path) -> None:
     assert cfg["model"]["reasoning_effort"] == "high"
 
 
+def test_repl_slash_gateway_start(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    save_config({"model": {}, "display": {}}, home)
+    monkeypatch.setattr("io_cli.config.ensure_io_home", lambda _p=None: home)
+    monkeypatch.setattr(
+        "io_cli.gateway_spawn.spawn_gateway_run_detached",
+        lambda _h: (999, str(home / "gateway" / "run.log"), "Started test pid."),
+    )
+    ns = argparse.Namespace(model=None, provider=None, cwd=cwd)
+    handled, msg = asyncio.run(
+        handle_repl_slash_command(
+            "/gateway start",
+            home=home,
+            cwd=cwd,
+            repl_args=ns,
+            load_extensions=False,
+            on_event=None,
+        )
+    )
+    assert handled is True
+    assert "Started test pid" in msg
+
+
 def test_repl_slash_non_slash_not_handled() -> None:
     handled, msg = asyncio.run(
         handle_repl_slash_command(
@@ -96,6 +122,55 @@ def test_repl_slash_skill_slug_passes_trailing_args(tmp_path: Path) -> None:
     )
     assert handled is False
     assert "hello there" in msg
+
+
+def test_repl_slash_model_interactive_picker(tmp_path: Path, monkeypatch) -> None:
+    """Bare `/model` with repl_interactive runs the TUI picker (mocked)."""
+    home = tmp_path / "home"
+    home.mkdir()
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    save_config({"model": {"provider": "mock", "default": "mock/io-test"}, "display": {}}, home)
+    monkeypatch.setattr(
+        "io_cli.model_picker.run_model_picker_dialog",
+        lambda **kwargs: ("mock/io-test", ""),
+    )
+    ns = argparse.Namespace(model=None, provider=None, cwd=cwd)
+    handled, msg = asyncio.run(
+        handle_repl_slash_command(
+            "/model",
+            home=home,
+            cwd=cwd,
+            repl_args=ns,
+            load_extensions=False,
+            on_event=None,
+            repl_interactive=True,
+        )
+    )
+    assert handled is True
+    assert "mock/io-test" in msg
+
+
+def test_repl_slash_model_no_args_non_interactive_shows_status(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    save_config({"model": {"provider": "mock", "default": "mock/io-test"}, "display": {}}, home)
+    ns = argparse.Namespace(model=None, provider=None, cwd=cwd)
+    handled, msg = asyncio.run(
+        handle_repl_slash_command(
+            "/model",
+            home=home,
+            cwd=cwd,
+            repl_args=ns,
+            load_extensions=False,
+            on_event=None,
+            repl_interactive=False,
+        )
+    )
+    assert handled is True
+    assert "Current model:" in msg
 
 
 def test_repl_slash_unknown_still_error(tmp_path: Path) -> None:

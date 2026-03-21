@@ -129,6 +129,7 @@ class DaytonaEnvironment(BaseEnvironment):
         cwd: Path | str,
         timeout: int | None = None,
         stdin_data: str | None = None,
+        stream_callback=None,
     ) -> dict[str, object]:
         with self._lock:
             self._ensure_sandbox_ready()
@@ -144,6 +145,10 @@ class DaytonaEnvironment(BaseEnvironment):
             timeout=timeout or self.timeout,
         )
         if "error" not in result:
+            if stream_callback:
+                out = str(result.get("output", "") or "")
+                if out:
+                    stream_callback("stdout", out)
             return result
 
         error = result["error"]
@@ -159,6 +164,10 @@ class DaytonaEnvironment(BaseEnvironment):
                 timeout=timeout or self.timeout,
             )
             if "error" not in retry:
+                if stream_callback:
+                    out = str(retry.get("output", "") or "")
+                    if out:
+                        stream_callback("stdout", out)
                 return retry
         return {"output": f"Daytona execution error: {error}", "returncode": 1, "timed_out": False}
 

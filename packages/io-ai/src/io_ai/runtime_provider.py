@@ -65,7 +65,13 @@ def get_model_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
         default = str(cfg.get("default", "") or "").strip()
         base_url = str(cfg.get("base_url", "") or "").strip()
         is_local = "localhost" in base_url or "127.0.0.1" in base_url
-        is_fallback = not default or default == "anthropic/claude-opus-4.6"
+        _stock = frozenset(
+            {
+                "anthropic/claude-opus-4.6",
+                "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+            }
+        )
+        is_fallback = not default or default in _stock
         if is_local and is_fallback and base_url:
             detected = _auto_detect_local_model(base_url)
             if detected:

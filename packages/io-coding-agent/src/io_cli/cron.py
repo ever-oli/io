@@ -543,13 +543,25 @@ class CronManager:
         gateway = GatewayManager(home=self.home).status()
         next_runs = [job.next_run_at for job in jobs if job.enabled and job.next_run_at]
         due_jobs = self.get_due_jobs()
+        runtime_up = bool(gateway.get("runtime_available"))
+        scheduler_available = runtime_up
+        if scheduler_available:
+            msg = (
+                "Gateway runtime is running — due cron jobs are executed on the gateway tick "
+                "(`io gateway run`)."
+            )
+        else:
+            msg = (
+                "No gateway runtime detected. Start `io gateway run` for automatic cron ticks, "
+                "or schedule `io cron tick` via cron/systemd."
+            )
         return {
             "jobs_total": len(jobs),
             "jobs_enabled": len([job for job in jobs if job.enabled]),
             "jobs_due": len(due_jobs),
             "next_run_at": min(next_runs) if next_runs else None,
-            "scheduler_available": False,
+            "scheduler_available": scheduler_available,
             "croniter_available": HAS_CRONITER,
             "gateway": gateway,
-            "message": "Cron schedules now track due runs and outputs, but automatic background ticking still depends on the gateway runtime.",
+            "message": msg,
         }

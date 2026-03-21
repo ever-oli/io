@@ -8,7 +8,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .config import ensure_io_home, get_config_path, get_env_path, load_config
+from .config import ensure_io_home, get_config_path, get_env_path, load_config, resolve_soul_path
 from .session import SessionManager
 from .status import status_report
 
@@ -55,6 +55,10 @@ def doctor_report(home: Path | None = None, cwd: Path | None = None) -> dict[str
         )
     if terminal.get("backend") == "daytona" and not packages["daytona"]:
         warnings.append("Daytona terminal backend selected but the daytona SDK is not installed.")
+    cfg = load_config(home)
+    soul_path, soul_source = resolve_soul_path(home, cwd=cwd, config=cfg)
+    if soul_source == "io_home" and not soul_path.is_file():
+        warnings.append(f"Missing {soul_path} (run io setup or add repo soul.md).")
     return {
         "python": {
             "version": sys.version.split()[0],
@@ -63,6 +67,8 @@ def doctor_report(home: Path | None = None, cwd: Path | None = None) -> dict[str
         },
         "home": str(home),
         "cwd": str(cwd),
+        "soul_path": str(soul_path),
+        "soul_source": soul_source,
         "config_path": str(config_path),
         "env_path": str(env_path),
         "config_model": load_config(home).get("model", {}),

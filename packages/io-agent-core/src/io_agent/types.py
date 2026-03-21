@@ -57,4 +57,5 @@ class AgentRunResult:
     messages: list[dict[str, Any]]
     usage: Usage = field(default_factory=Usage)
     iterations: int = 0
+    interrupted: bool = False
 

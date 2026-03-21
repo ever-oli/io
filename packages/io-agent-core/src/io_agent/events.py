@@ -43,6 +43,16 @@ class MessageEvent(AgentEvent):
 
 
 @dataclass(slots=True)
+class MessageDeltaEvent(AgentEvent):
+    type: str = "message_delta"
+
+
+@dataclass(slots=True)
+class ToolOutputDeltaEvent(AgentEvent):
+    type: str = "tool_output_delta"
+
+
+@dataclass(slots=True)
 class CompactionEvent(AgentEvent):
     type: str = "context_compacted"
 

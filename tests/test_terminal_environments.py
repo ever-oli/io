@@ -55,7 +55,15 @@ def test_terminal_tool_uses_environment_factory_for_overrides(tmp_path: Path, mo
     class FakeEnvironment:
         backend = "docker"
 
-        def execute(self, command: str, *, cwd: Path, timeout: int | None = None, stdin_data: str | None = None):
+        def execute(
+            self,
+            command: str,
+            *,
+            cwd: Path,
+            timeout: int | None = None,
+            stdin_data: str | None = None,
+            stream_callback=None,
+        ):
             captured["command"] = command
             captured["cwd"] = cwd
             captured["timeout"] = timeout
@@ -177,7 +185,15 @@ def test_terminal_tool_daytona_backend_uses_remote_cwd(tmp_path: Path, monkeypat
     class FakeEnvironment:
         backend = "daytona"
 
-        def execute(self, command: str, *, cwd: Path | str, timeout: int | None = None, stdin_data: str | None = None):
+        def execute(
+            self,
+            command: str,
+            *,
+            cwd: Path | str,
+            timeout: int | None = None,
+            stdin_data: str | None = None,
+            stream_callback=None,
+        ):
             captured["command"] = command
             captured["cwd"] = cwd
             captured["timeout"] = timeout

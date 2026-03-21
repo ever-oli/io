@@ -16,7 +16,8 @@ from .default_soul import DEFAULT_SOUL_MD
 DEFAULT_CONFIG: dict[str, Any] = {
     "model": {
         "provider": "auto",
-        "default": "anthropic/claude-opus-4.6",
+        # Free-tier OpenRouter default for new installs (override in ~/.io/config.yaml).
+        "default": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
         "base_url": "",
         "api_mode": "",
     },
@@ -45,6 +46,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "ssh_key": "",
     },
     "browser": {
+        "backend": "local_playwright",  # local_playwright | cdp | browserbase | browser_use
+        "headless": True,
+        "cdp_url": "",
+        "browserbase_api_key": "",
+        "browserbase_project_id": "",
+        "browser_use_api_key": "",
+        "browser_use_api_base": "https://api.browser-use.com/api/v2",
+        "viewport_width": 1280,
+        "viewport_height": 720,
         "inactivity_timeout": 120,
         "record_sessions": False,
     },
@@ -91,6 +101,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "bell_on_complete": False,
         "show_reasoning": False,
         "streaming": False,
+        "stream_tool_output": True,
+        "repl_multiline": True,
+        # meta_submit = full prompt_toolkit multiline (Enter newline, Meta+Enter submit).
+        # single_ctrl_j = pi-like: Enter submits, Ctrl-J inserts newline (default).
+        # buffer = line-oriented paste mode until a sentinel line (see repl_buffer_sentinel).
+        "repl_multiline_mode": "single_ctrl_j",
+        "repl_buffer_sentinel": "END",
         "show_cost": False,
         "skin": "default",
     },
@@ -103,12 +120,77 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "domains": [],
             "shared_files": [],
         },
+        # OpenGauss/Hermes-style Tirith CLI (optional binary on PATH or ~/.io/bin/tirith)
+        "tirith": {
+            "enabled": True,
+            "path": "tirith",
+            "timeout": 5,
+            "fail_open": True,
+            # Used by ``io security tirith-install`` (``cargo install`` crate name)
+            "cargo_install_package": "tirith",
+        },
     },
     "gateway": {
         "enabled": False,
     },
+    "honcho": {
+        "enabled": False,
+        "base_url": "",
+        "api_key": "",
+        "timeout": 30.0,
+        # v3 API (https://docs.honcho.dev/v3/). Set api_version: legacy for old GET /api/* installs.
+        "api_version": "v3",
+        "workspace_id": "default",
+        "session_id": "",
+        "default_peer_id": "user",
+        "conclusion_observer_peer": "io-agent",
+        "conclusion_observed_peer": "user",
+    },
+    # Repo-local soul.md when gateway/terminal cwd is $HOME (e.g. Telegram) — see README
+    "soul": {
+        "workspace_root": "",
+    },
     "nuggets": {
         "auto_promote": True,
+        "periodic_nudge": {
+            "enabled": False,
+            "interval_hours": 24,
+            "prompt": (
+                "Summarize recent work as 3–7 bullets suitable for ~/.io/memories/MEMORY.md; "
+                "use only read-safe tools."
+            ),
+            "model": "mock/io-test",
+            "provider": "mock",
+            "timeout_sec": 300,
+        },
+    },
+    # OpenGauss bridge — subprocess passthrough (io gauss chat, gateway run, etc.)
+    "gauss": {
+        "enabled": True,
+        "bin": "gauss",
+    },
+    # Formal proofs: Aristotle (Harmonic Math) via `uv run aristotle submit …`
+    "lean": {
+        "enabled": True,
+        "default_project_dir": ".",
+        # When true, use registry ``current`` as --project-dir if neither --project-dir nor --project is set
+        "prefer_registry_current": False,
+        # If ``project_dir/.gauss/project.yaml`` sets a lean root, use it for --project-dir
+        "respect_gauss_project_yaml": True,
+        # Optional: ``backends: { aristotle: { prove_argv: [...] }, gauss: { ... } }`` plus
+        # ``default_backend`` — see docs/open_gauss_hermes_port.md and ``io lean backends list``.
+        "submit_argv": ["uv", "run", "aristotle", "submit"],
+        "submit_timeout": 600,
+        # OpenGauss-style /prove — override for lean4-skills or a different CLI
+        "prove_argv": ["uv", "run", "aristotle", "prove"],
+        "prove_timeout": 600,
+        # Gauss-style bridges — set to your OpenGauss / wrapper CLIs when used
+        "draft_argv": [],
+        "draft_timeout": 600,
+        "formalize_argv": [],
+        "formalize_timeout": 600,
+        "swarm_argv": [],
+        "swarm_timeout": 900,
     },
     "skills": {
         "auto_load": True,
@@ -269,9 +351,101 @@ def load_env(home: Path | None = None) -> dict[str, str]:
     return {key: value for key, value in dotenv_values(env_path).items() if value is not None}
 
 
-def load_soul(home: Path | None = None) -> str:
+def _find_workspace_soul(start: Path) -> Path | None:
+    """First ``soul.md`` or ``SOUL.md`` walking up from *start* (repo-local persona)."""
+    cur = start.resolve()
+    for _ in range(24):
+        for name in ("soul.md", "SOUL.md"):
+            candidate = cur / name
+            if candidate.is_file():
+                return candidate
+        parent = cur.parent
+        if parent == cur:
+            break
+        cur = parent
+    return None
+
+
+def _soul_file_in_dir(directory: Path) -> Path | None:
+    """Return ``soul.md`` or ``SOUL.md`` directly under *directory* if present."""
+    d = directory.resolve()
+    for name in ("soul.md", "SOUL.md"):
+        candidate = d / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def resolve_soul_path(
+    home: Path | None = None,
+    *,
+    cwd: Path | None = None,
+    config: dict[str, Any] | None = None,
+) -> tuple[Path, str]:
+    """Return ``(path, source)`` — *source* is ``workspace``, ``workspace_root``, or ``io_home``."""
     home = ensure_io_home(home)
-    return (home / "SOUL.md").read_text(encoding="utf-8")
+    cfg = config if config is not None else load_config(home)
+    soul_cfg = cfg.get("soul") if isinstance(cfg.get("soul"), dict) else {}
+    root_raw = str(soul_cfg.get("workspace_root", "") or "").strip()
+
+    if cwd is not None:
+        ws = _find_workspace_soul(cwd)
+        if ws is not None:
+            return ws, "workspace"
+    if root_raw:
+        root = Path(root_raw).expanduser()
+        if not root.is_absolute():
+            root = (Path.home() / root).resolve()
+        else:
+            root = root.resolve()
+        fixed = _soul_file_in_dir(root)
+        if fixed is not None:
+            return fixed, "workspace_root"
+    return home / "SOUL.md", "io_home"
+
+
+def load_soul(
+    home: Path | None = None,
+    *,
+    cwd: Path | None = None,
+    config: dict[str, Any] | None = None,
+) -> str:
+    """Load system persona: cwd walk, then ``soul.workspace_root``, else ``~/.io/SOUL.md``."""
+    path, _src = resolve_soul_path(home, cwd=cwd, config=config)
+    return path.read_text(encoding="utf-8")
+
+
+def soul_status_payload(
+    home: Path | None = None,
+    *,
+    cwd: Path | None = None,
+) -> dict[str, Any]:
+    """Diagnostics: which soul file prompts use, plus a short preview (``io soul status``)."""
+    home = ensure_io_home(home)
+    cwd = (cwd or Path.cwd()).resolve()
+    cfg = load_config(home)
+    path, source = resolve_soul_path(home, cwd=cwd, config=cfg)
+    exists = path.is_file()
+    text = path.read_text(encoding="utf-8") if exists else ""
+    lines = text.splitlines()
+    preview_lines = lines[:8]
+    preview = "\n".join(preview_lines)
+    if len(lines) > 8 or len(text) > 600:
+        preview = preview[:600] + "…"
+    return {
+        "soul_path": str(path),
+        "soul_source": source,
+        "exists": exists,
+        "char_count": len(text),
+        "line_count": len(lines),
+        "preview": preview if preview else "(empty file)",
+        "hint": (
+            "Telegram/gateway often uses cwd=$HOME — set soul.workspace_root in ~/.io/config.yaml "
+            "if soul_source is io_home but your persona lives in a repo."
+            if source == "io_home"
+            else "This file is prepended as the system prompt for IO (plus memories suffix)."
+        ),
+    }
 
 
 def memory_snapshot(home: Path | None = None) -> str:
