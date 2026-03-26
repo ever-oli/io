@@ -7,6 +7,7 @@ import asyncio
 import json
 import os
 import signal
+import time
 from pathlib import Path
 import sys
 
@@ -32,6 +33,7 @@ from .skills import discover_skills, inspect_skill, save_skill_toggle, search_sk
 from .session import SessionManager
 from .status import render_status_text, status_report
 from .toolsets import enabled_tools_for_platform, set_toolset_enabled, toolsets_status
+from .tool_trace import format_tool_trace_lines, should_trace_tool
 from .tools_config import toolsets_command
 from .tools.registry import get_tool_registry
 from io_agent import resolve_runtime
@@ -97,9 +99,33 @@ def build_parser() -> argparse.ArgumentParser:
     setup = subparsers.add_parser("setup", help="Bootstrap ~/.io and print the home path")
     setup.add_argument("--home", type=Path, help="Override IO home directory")
 
-    auth = subparsers.add_parser("auth", help="Inspect provider auth state")
+    auth = subparsers.add_parser(
+        "auth",
+        help="Inspect provider auth or run GitHub Copilot device login (Hermes-style)",
+    )
+    auth.add_argument("--home", type=Path, default=None, help="IO home directory (default ~/.io)")
     auth_subparsers = auth.add_subparsers(dest="auth_command")
-    auth_subparsers.add_parser("status", help="Show auth status")
+    auth_subparsers.add_parser("status", help="Show auth status (JSON)")
+    auth_subparsers.add_parser(
+        "copilot-login",
+        help="OAuth device flow for GitHub Copilot; saves token to ~/.io/auth.json",
+    )
+    auth_mcp_login = auth_subparsers.add_parser(
+        "mcp-login",
+        help="Store MCP server OAuth/API token in ~/.io/mcp_auth.json",
+    )
+    auth_mcp_login.add_argument("server", help="MCP server name")
+    auth_mcp_login.add_argument("token", help="Bearer/API token for this MCP server")
+    auth_mcp_login.add_argument(
+        "--expires-at",
+        help="Optional ISO timestamp for token expiry, e.g. 2026-12-31T00:00:00+00:00",
+    )
+    auth_mcp_logout = auth_subparsers.add_parser(
+        "mcp-logout",
+        help="Remove MCP server token from ~/.io/mcp_auth.json",
+    )
+    auth_mcp_logout.add_argument("server", help="MCP server name")
+    auth_subparsers.add_parser("mcp-status", help="Show MCP auth status (JSON)")
 
     config = subparsers.add_parser("config", help="Inspect or change config")
     config_subparsers = config.add_subparsers(dest="config_command")
@@ -417,10 +443,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     research = subparsers.add_parser("research", help="Trajectory / RL export helpers (lightweight, no extra deps)")
     research_sub = research.add_subparsers(dest="research_command", required=True)
+    research_list = research_sub.add_parser("list", help="List recent exportable sessions from ~/.io/state.db")
+    research_list.add_argument("--home", type=Path, default=None, help="IO home directory (default: ~/.io)")
+    research_list.add_argument("--limit", type=int, default=50, help="Maximum recent sessions to inspect")
     research_export = research_sub.add_parser("export", help="Export indexed sessions from ~/.io/state.db to JSONL")
     research_export.add_argument("--home", type=Path, default=None, help="IO home directory (default: ~/.io)")
     research_export.add_argument("--out", type=Path, required=True, help="Output JSONL file path")
     research_export.add_argument("--limit", type=int, default=200, help="Maximum recent sessions to export")
+    research_summary = research_sub.add_parser("summary", help="Summarize an exported trajectory JSONL")
+    research_summary.add_argument("--path", type=Path, required=True, help="Trajectory JSONL file path")
 
     return parser
 
@@ -439,6 +470,20 @@ def _run_repl(args: argparse.Namespace) -> int:
         repl_mode = "single_ctrl_j"
     buffer_sentinel = str(display_cfg.get("repl_buffer_sentinel", "END") or "END")
     show_stream = bool(display_cfg.get("streaming", False))
+    show_tool_trace = bool(display_cfg.get("tool_trace", True))
+    tool_trace_mode = str(display_cfg.get("tool_trace_mode", "compact") or "compact")
+    tool_trace_icon_preset = str(display_cfg.get("tool_trace_icon_preset", "emoji") or "emoji")
+    tool_trace_icon_overrides = (
+        display_cfg.get("tool_trace_icon_overrides")
+        if isinstance(display_cfg.get("tool_trace_icon_overrides"), dict)
+        else {}
+    )
+    tool_trace_show_duration = bool(display_cfg.get("tool_trace_show_duration", True))
+    tool_trace_suppress = (
+        display_cfg.get("tool_trace_suppress_tools")
+        if isinstance(display_cfg.get("tool_trace_suppress_tools"), list)
+        else []
+    )
     ui.console.print(
         build_welcome_banner(
             ui.console,
@@ -510,6 +555,7 @@ def _run_repl(args: argparse.Namespace) -> int:
 
         ui.console.print("[dim]Φ thinking...[/]")
         stream_state: dict[str, bool] = {"had_delta": False, "got_token_delta": False}
+        tool_started_at: dict[str, float] = {}
         interrupt_registry: dict[str, object] = {}
 
         def _sigint(_signum: int, _frame: object | None) -> None:
@@ -533,6 +579,19 @@ def _run_repl(args: argparse.Namespace) -> int:
                             stream_state["had_delta"] = True
                             stream_state["got_token_delta"] = True
                     elif event_type == "tool_call_start":
+                        if show_tool_trace:
+                            tool = str(payload.get("tool", "tool"))
+                            arguments = payload.get("arguments")
+                            tool_started_at[tool] = time.monotonic()
+                            if isinstance(arguments, dict) and should_trace_tool(tool, suppress_tools=tool_trace_suppress):
+                                for line in format_tool_trace_lines(
+                                    tool,
+                                    arguments,
+                                    mode=tool_trace_mode,
+                                    icon_preset=tool_trace_icon_preset,
+                                    icon_overrides=tool_trace_icon_overrides,
+                                ):
+                                    ui.console.print(line, style="dim")
                         if show_stream and stream_state.get("had_delta"):
                             ui.console.print()
                             stream_state["had_delta"] = False
@@ -542,6 +601,18 @@ def _run_repl(args: argparse.Namespace) -> int:
                         ui.console.print(str(payload.get("delta", "") or ""), end="", style="dim")
                     elif event_type == "tool_call_end":
                         tool = str(payload.get("tool", "tool"))
+                        if show_tool_trace and tool_trace_show_duration and should_trace_tool(tool, suppress_tools=tool_trace_suppress):
+                            started = tool_started_at.get(tool)
+                            duration = (time.monotonic() - started) if started is not None else None
+                            done_line = format_tool_trace_lines(
+                                tool,
+                                {},
+                                mode="compact",
+                                icon_preset=tool_trace_icon_preset,
+                                icon_overrides=tool_trace_icon_overrides,
+                                duration_seconds=duration,
+                            )[0]
+                            ui.console.print(done_line + " done", style="dim")
                         thinking_status.update(f"[bold #FFBF00]Φ thinking...[/] [dim]finished {tool}[/]")
 
                 result = asyncio.run(
@@ -687,9 +758,46 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "auth":
+        home = ensure_io_home(args.home)
+        if args.auth_command == "mcp-login":
+            from .mcp_runtime import MCPAuthStore, mcp_auth_status
+
+            MCPAuthStore(home=home).set_token(
+                str(args.server),
+                str(args.token),
+                expires_at=(str(args.expires_at).strip() if args.expires_at else None),
+            )
+            print(json.dumps(mcp_auth_status(home), indent=2, sort_keys=True))
+            return 0
+        if args.auth_command == "mcp-logout":
+            from .mcp_runtime import MCPAuthStore, mcp_auth_status
+
+            MCPAuthStore(home=home).clear_token(str(args.server))
+            print(json.dumps(mcp_auth_status(home), indent=2, sort_keys=True))
+            return 0
+        if args.auth_command == "mcp-status":
+            from .mcp_runtime import mcp_auth_status
+
+            print(json.dumps(mcp_auth_status(home), indent=2, sort_keys=True))
+            return 0
+        if args.auth_command == "copilot-login":
+            from io_ai.auth import AuthStore
+            from io_ai.copilot_auth import copilot_device_code_login, save_copilot_token_to_auth
+
+            store = AuthStore(home=home)
+            token = copilot_device_code_login()
+            if not token:
+                return 1
+            save_copilot_token_to_auth(store, token)
+            print(
+                "Saved Copilot token to ~/.io/auth.json under copilot.api_key. "
+                "Run `io auth status` to verify (copilot.logged_in should be true)."
+            )
+            return 0
+
         from .auth import auth_status
 
-        print(json.dumps(auth_status(), indent=2, sort_keys=True))
+        print(json.dumps(auth_status(home), indent=2, sort_keys=True))
         return 0
 
     if args.command == "config":
@@ -1023,12 +1131,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "research":
-        from .trajectory_export import export_trajectories_jsonl
+        from .trajectory_export import export_trajectories_jsonl, list_exportable_sessions, summarize_export_jsonl
 
+        if args.research_command == "list":
+            h = ensure_io_home(args.home)
+            rows = list_exportable_sessions(home=h, limit_sessions=args.limit)
+            print(json.dumps(rows, indent=2, sort_keys=True))
+            return 0
         if args.research_command == "export":
             h = ensure_io_home(args.home)
             lines = export_trajectories_jsonl(home=h, out=args.out, limit_sessions=args.limit)
             print(f"Exported {lines} sessions to {args.out}")
+            return 0
+        if args.research_command == "summary":
+            print(json.dumps(summarize_export_jsonl(args.path), indent=2, sort_keys=True))
             return 0
         return 1
 

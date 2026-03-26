@@ -350,6 +350,10 @@ class AuthStore:
                     return value.strip()
         return None
 
+    def get_stored_provider_token(self, provider: str) -> str | None:
+        """Return API key from ``~/.io/auth.json`` only (no environment variables)."""
+        return self._token_from_auth_payload(provider)
+
     def get_api_key(self, provider: str | None, config: dict[str, Any] | None = None) -> str | None:
         normalized = normalize_provider_name(provider)
         if normalized is None or normalized == "mock":
@@ -360,6 +364,11 @@ class AuthStore:
             if custom["api_key"]:
                 return custom["api_key"]
             normalized = "custom"
+
+        if normalized == "copilot":
+            from .copilot_auth import resolve_copilot_api_key
+
+            return resolve_copilot_api_key(self, config=config)
 
         provider_cfg = self.provider_config(normalized)
         dotenv_map = self.dotenv_values()

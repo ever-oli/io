@@ -9,6 +9,7 @@ Uses python-telegram-bot library for:
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import re
@@ -129,6 +130,7 @@ class TelegramAdapter(BasePlatformAdapter):
         self._token_lock_identity: Optional[str] = None
         self._polling_error_task: Optional[asyncio.Task] = None
         self._update_offset = int(config.extra.get("offset", 0) or 0)
+        self._normalize_offset_for_token_change()
 
     @property
     def token(self) -> str:
@@ -145,6 +147,26 @@ class TelegramAdapter(BasePlatformAdapter):
     @property
     def _api_base_url(self) -> str:
         return f"https://api.telegram.org/bot{self.token}" if self.token else ""
+
+    def _token_fingerprint(self) -> str:
+        token = self.token
+        if not token:
+            return ""
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+
+    def _normalize_offset_for_token_change(self) -> None:
+        """Reset persisted getUpdates offset if the configured bot token changed.
+
+        Offsets are token-specific. Reusing a stale high offset with a different
+        bot token can cause Telegram polling to miss all new updates.
+        """
+        fp = self._token_fingerprint()
+        previous = str(self.config.extra.get("token_fingerprint", "") or "")
+        if fp and previous and previous != fp:
+            self._update_offset = 0
+            self.config.extra["offset"] = 0
+        if fp:
+            self.config.extra["token_fingerprint"] = fp
 
     async def _request_json(
         self,
@@ -301,6 +323,13 @@ class TelegramAdapter(BasePlatformAdapter):
         )
 
     async def poll_once(self, *, timeout: float = 0.0) -> list[MessageEvent]:
+        # When python-telegram-bot updater polling is active, incoming updates are
+        # delivered via registered handlers (push mode). Calling getUpdates here
+        # would create a second poller and trigger Telegram conflict errors.
+        if self._app is not None and getattr(self._app, "updater", None) is not None:
+            updater = getattr(self._app, "updater")
+            if bool(getattr(updater, "running", False)):
+                return []
         effective_timeout = max(0, int(timeout))
         payload = {
             "offset": self._update_offset,

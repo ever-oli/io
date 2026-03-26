@@ -13,6 +13,7 @@ from io_agent import GLOBAL_TOOL_REGISTRY, Tool, ToolContext, ToolResult
 from ..config import get_io_home
 from ..environments import EnvironmentConfigurationError, create_environment, resolve_terminal_environment
 from ..security.tirith import check_command_security, tirith_approval_suffix
+from ..text_sanitize import strip_ansi
 from .process_runtime import process_registry
 from .shell import DANGEROUS_SNIPPETS
 
@@ -208,7 +209,7 @@ class TerminalCompatTool(Tool):
             out_cb = context.tool_output_callback
 
             def stream_cb(stream_name: str, chunk: str) -> None:
-                out_cb("terminal", stream_name, chunk)
+                out_cb("terminal", stream_name, strip_ansi(chunk))
 
         try:
             result = await asyncio.to_thread(
@@ -235,7 +236,7 @@ class TerminalCompatTool(Tool):
                 "command": command,
                 "cwd": reported_cwd,
                 "backend": request.backend,
-                "output": str(result.get("output", "")),
+                "output": strip_ansi(str(result.get("output", ""))),
                 "exit_code": result.get("returncode"),
                 "timed_out": bool(result.get("timed_out", False)),
             }

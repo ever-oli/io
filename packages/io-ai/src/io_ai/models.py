@@ -552,13 +552,30 @@ def list_available_providers(
 
 
 def parse_model_input(raw: str, current_provider: str) -> tuple[str, str]:
+    """Split ``provider:model`` only when the left side is a known provider token.
+
+    Model ids often contain colons (e.g. OpenRouter ``…/model:free``). Using the
+    *first* ``:`` blindly would treat ``openrouter/nvidia/foo:free`` as
+    ``provider=openrouter/nvidia/foo`` (invalid) and fall back to *current_provider*,
+    which then makes ``ModelRegistry.resolve(..., provider=copilot)`` rewrite
+    OpenRouter models to ``copilot/…``.
+    """
     stripped = raw.strip()
     colon = stripped.find(":")
     if colon > 0:
         provider_part = stripped[:colon].strip().lower()
         model_part = stripped[colon + 1 :].strip()
-        if provider_part and model_part and provider_part in _KNOWN_PROVIDER_NAMES:
+        # Real CLI form is ``anthropic:claude-…`` / ``openrouter:gpt-…`` — never ``a/b:c``.
+        if (
+            provider_part
+            and model_part
+            and "/" not in provider_part
+            and provider_part in _KNOWN_PROVIDER_NAMES
+        ):
             return (normalize_provider(provider_part), model_part)
+        # Colon present but not ``known_provider:model`` (e.g. ``…/slug:free``) — do not
+        # fall back to *current_provider* (would pair copilot + openrouter slug incorrectly).
+        return ("", stripped)
     return (current_provider, stripped)
 
 
@@ -810,8 +827,22 @@ class ModelRegistry:
             chosen = self.default_for(canonical)
 
         if canonical and chosen.provider != canonical:
-            candidate_id = f"{canonical}/{chosen.remote_id}"
-            chosen = self.models.get(candidate_id, self._ad_hoc_model(canonical, chosen.remote_id, base_url=base_url))
+            # Do not stomp an explicit ``provider/remote`` id with *canonical* from the
+            # outer ``provider=`` argument (e.g. config says copilot but user picked
+            # ``openrouter/nvidia/…:free`` in ``/model``).
+            skip_force = False
+            if model and "/" in model:
+                head, _rem = model.split("/", 1)
+                nh = normalize_provider_name(head) or normalize_provider(head)
+                head_canon = canonical_provider_name(nh)
+                if head_canon is not None and head_canon != canonical:
+                    skip_force = True
+            if not skip_force:
+                candidate_id = f"{canonical}/{chosen.remote_id}"
+                chosen = self.models.get(
+                    candidate_id,
+                    self._ad_hoc_model(canonical, chosen.remote_id, base_url=base_url),
+                )
 
         if base_url:
             chosen = ModelRef(

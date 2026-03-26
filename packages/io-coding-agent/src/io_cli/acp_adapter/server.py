@@ -38,6 +38,7 @@ from .. import __version__ as IO_VERSION
 from ..toolsets import build_toolset_resolver
 from ..tools.registry import get_tool_registry
 from .auth import detect_provider, has_provider
+from ..mcp_runtime import mcp_auth_status
 from .session import SessionManager, SessionState
 
 
@@ -102,6 +103,19 @@ class IOACPAgent(acp.Agent):
                     description=f"Authenticate IO using the currently configured {provider} runtime credentials.",
                 )
             ]
+        mcp_servers = mcp_auth_status(home=self.session_manager.home).get("servers", {})
+        if isinstance(mcp_servers, dict):
+            for server_name, data in sorted(mcp_servers.items()):
+                if not isinstance(data, dict) or not data.get("configured"):
+                    continue
+                auth_methods = list(auth_methods or [])
+                auth_methods.append(
+                    AuthMethod(
+                        id=f"mcp:{server_name}",
+                        name=f"MCP {server_name} credentials",
+                        description=f"Authenticate IO ACP with stored MCP token for '{server_name}'.",
+                    )
+                )
         client_name = client_info.name if client_info else "unknown"
         logger.info("Initialize from %s (protocol v%s)", client_name, protocol_version)
         return InitializeResponse(
@@ -120,11 +134,17 @@ class IOACPAgent(acp.Agent):
         del method_id, kwargs
         if has_provider(home=self.session_manager.home):
             return AuthenticateResponse()
+        payload = mcp_auth_status(home=self.session_manager.home).get("servers", {})
+        if isinstance(payload, dict):
+            for _server, row in payload.items():
+                if isinstance(row, dict) and row.get("configured") and not row.get("expired"):
+                    return AuthenticateResponse()
         return None
 
     async def new_session(self, cwd: str, mcp_servers: list | None = None, **kwargs: Any) -> NewSessionResponse:
-        del mcp_servers, kwargs
-        state = self.session_manager.create_session(cwd=cwd)
+        del kwargs
+        mcp_payload = [item for item in (mcp_servers or []) if isinstance(item, dict)]
+        state = self.session_manager.create_session(cwd=cwd, mcp_servers=mcp_payload)
         return NewSessionResponse(session_id=state.session_id)
 
     async def load_session(
@@ -134,10 +154,15 @@ class IOACPAgent(acp.Agent):
         mcp_servers: list | None = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
-        del mcp_servers, kwargs
+        del kwargs
         state = self.session_manager.update_cwd(session_id, cwd)
         if state is None:
             return None
+        if mcp_servers is not None:
+            self.session_manager.update_mcp_servers(
+                session_id,
+                [item for item in mcp_servers if isinstance(item, dict)],
+            )
         return LoadSessionResponse()
 
     async def resume_session(
@@ -147,10 +172,13 @@ class IOACPAgent(acp.Agent):
         mcp_servers: list | None = None,
         **kwargs: Any,
     ) -> ResumeSessionResponse:
-        del mcp_servers, kwargs
+        del kwargs
+        mcp_payload = [item for item in (mcp_servers or []) if isinstance(item, dict)]
         state = self.session_manager.update_cwd(session_id, cwd)
         if state is None:
-            state = self.session_manager.create_session(cwd=cwd)
+            state = self.session_manager.create_session(cwd=cwd, mcp_servers=mcp_payload)
+        elif mcp_servers is not None:
+            self.session_manager.update_mcp_servers(session_id, mcp_payload)
         return ResumeSessionResponse()
 
     async def cancel(self, session_id: str, **kwargs: Any) -> None:
@@ -168,8 +196,12 @@ class IOACPAgent(acp.Agent):
         mcp_servers: list | None = None,
         **kwargs: Any,
     ) -> ForkSessionResponse:
-        del mcp_servers, kwargs
-        state = self.session_manager.fork_session(session_id, cwd=cwd)
+        del kwargs
+        state = self.session_manager.fork_session(
+            session_id,
+            cwd=cwd,
+            mcp_servers=[item for item in (mcp_servers or []) if isinstance(item, dict)] or None,
+        )
         return ForkSessionResponse(session_id=state.session_id if state else "")
 
     async def list_sessions(

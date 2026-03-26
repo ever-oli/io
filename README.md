@@ -31,7 +31,7 @@ Current milestone: `0.1.2` (2026-03-19) — Nuggets-style HRR memory parity, gat
 | Honcho tools | **Honcho API v3** by default (`workspace_id`, `session_id`, peer defaults). Set `honcho.api_version: legacy` + `paths` for old `/api/*` servers. See [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md) |
 | Delegation / code tools | `delegate_task`, `execute_code` registered (`delegation` / `code_execution` toolsets; included in `io-cli`) |
 | Cron scheduler truth | `cron.status().scheduler_available` reflects gateway runtime (`io gateway run`) |
-| Trajectory export | `io research export --out trajectories.jsonl` (from `~/.io/state.db`) |
+| Research workflow | `io research list`, `io research export`, `io research summary --path ...` |
 
 **Memory stack:** the original IO layer (`memory_snapshot` + `~/.io/memories/*.md`, `memory` tool, FTS + `session_search`, nuggets) stays the default and is **not** replaced by Honcho. Honcho is optional on top — see [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md).
 
@@ -94,19 +94,27 @@ uv run pytest
 
 **`/model` in the REPL:** With no arguments, IO opens **one prompt** with **fuzzy Tab completion** (same dropdown style as slash commands) over models from **configured providers**. You can still **`/model anthropic:claude-…`** in one line. New installs default to a **free** OpenRouter model (`openrouter/nvidia/nemotron-3-super-120b-a12b:free`); override in `~/.io/config.yaml`. CLI: `io models` / `io models --search …` / `io models --all`.
 
-### Typing `io` in any terminal (like `pi`)
+**`/provider` in the REPL:** Same pattern — bare **`/provider`** opens a **fuzzy picker** for **auto** + known providers (from `io auth`); you can also type **`/provider openrouter`** (with **Tab** / ghost text on the slash line like `/model`).
 
-`pi` is usually on your **PATH** from a global install (`pipx`, Homebrew, etc.). This repo’s CLI is the console script **`io`** → `io_cli.cli:main`; until something puts that on PATH, only `uv run io` from the clone works.
+**GitHub Copilot (Hermes-style OAuth):** Run **`io auth copilot-login`** — GitHub **device code** flow (same OAuth client as Copilot CLI / Hermes); the token is saved to **`~/.io/auth.json`** under **`copilot.api_key`**. Alternatively set **`COPILOT_GITHUB_TOKEN`**, **`GH_TOKEN`**, or **`GITHUB_TOKEN`** in **`~/.io/.env`** (OAuth `gho_*`, fine-grained `github_pat_*`, or `ghu_*`; classic `ghp_*` PATs are **not** accepted for the Copilot API). Use **`io auth status`** to confirm **`copilot.logged_in`**.
 
-Pick one:
+**MCP auth status/login:** Use **`io auth mcp-login <server> <token>`**, **`io auth mcp-status`**, and **`io auth mcp-logout <server>`** to manage MCP server tokens in `~/.io/mcp_auth.json`.
 
-1. **Alias (simplest, always uses this repo’s lockfile)** — in `~/.zshrc`:
+**Semantic + repo-map context (feature flags):** set `semantic.enabled: true` and/or `semantic.repo_map: true` in `~/.io/config.yaml` (or env flags `IO_SEMANTIC_CONTEXT=1`, `IO_REPO_MAP_CONTEXT=1`) to inject lightweight semantic hits and repo-map context into prompt system context.
+
+### Typing `io` in any terminal
+
+**This repo’s CLI** is the Python console script **`io`** → `io_cli.cli:main`. Until that executable is on your **PATH**, only `uv run io` from the clone works.
+
+Pick one way to put **`io`** on PATH:
+
+1. **Alias (always uses this repo’s lockfile)** — in `~/.zshrc`:
 
    ```bash
    alias io='uv run --directory /ABS/PATH/TO/THIS/REPO io'
    ```
 
-   Then `source ~/.zshrc` and run `io` from any directory.
+   Then `source ~/.zshrc`.
 
 2. **Prepend the repo venv** — after `uv sync`:
 
@@ -114,16 +122,31 @@ Pick one:
    export PATH="/ABS/PATH/TO/THIS/REPO/.venv/bin:$PATH"
    ```
 
-   Put that in `~/.zshrc` so bare `io` resolves to `.venv/bin/io`.
-
-3. **Global tool install** (optional):
+3. **Global uv tool** (common):
 
    ```bash
    cd /ABS/PATH/TO/THIS/REPO
    uv tool install .
    ```
 
-   Ensure `uv tool`'s bin dir is on PATH (often `~/.local/bin`).
+   Then ensure **`~/.local/bin`** is on PATH (uv’s default tool bin dir).
+
+#### IO vs Mario’s `pi` (no more tangles)
+
+| What | Kind | Command name | How you run it |
+|------|------|----------------|----------------|
+| **This project** | Python (uv) | **`io`** | `uv run io` or `uv tool install .` then **`io`** |
+| **`@mariozechner/pi-coding-agent`** (npm) | Node | **`pi`** only | `npm view @mariozechner/pi-coding-agent bin` → `{ "pi": "dist/cli.js" }` — upstream registers **`pi`**, not `io` |
+
+**The real fix** so typing **`io`** runs **this** repo: your shell must find **this** `io` **first**. Put **`~/.local/bin`** (or `.venv/bin`) **before** `/opt/homebrew/bin` (and any npm global dir) in `PATH`, e.g.:
+
+```bash
+export PATH="${HOME}/.local/bin:${PATH}"
+```
+
+Then check: **`command -v io`** should show **`…/.local/bin/io`** (or your venv), not Homebrew.
+
+**If you still have a stray `io` → pi:** Some machines have an old **`io`** symlink next to Homebrew’s Node tree pointing at `pi-coding-agent`’s `cli.js`. That is **not** this Python IO. You can delete that symlink or `npm uninstall -g @mariozechner/pi-coding-agent` **if** you don’t use Mario’s agent. That uninstall **does not** remove **this** IO. If you use his agent again, reinstall the npm package and run **`pi`** (the supported name), and keep **`~/.local/bin` before Homebrew** so your **`io`** still resolves to Python IO.
 
 **Terminal tab (pi-style):** When the **interactive** REPL starts, IO prints an **OSC 0** title sequence (same mechanism as pi’s `setTitle`) so many terminals show **`φ io — ~/your/project`**. If the tab still says **`uv`** until IO boots, that’s the parent process name — put **`.venv/bin/io`** on PATH (option 2) so the shell spawns **`io`** directly. Set **`IO_TERMINAL_TITLE=0`** to disable title changes.
 

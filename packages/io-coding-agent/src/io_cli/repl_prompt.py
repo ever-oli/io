@@ -12,6 +12,7 @@ from io_ai import ModelRegistry, provider_label
 from .auth import auth_status
 from .commands import SlashCommandAutoSuggest, SlashCommandCompleter, gateway_only_slash_completions
 from .config import load_config, load_env
+from .provider_picker import list_provider_picker_rows
 from .skills import skill_slash_command_map
 
 
@@ -39,6 +40,17 @@ def _model_completer_payload(*, home: Path) -> dict[str, Any]:
     }
 
 
+def _provider_completer_payload(*, home: Path) -> dict[str, Any]:
+    """Rows for ``/provider`` Tab menu (id, label, configured); current provider sorts last."""
+    config = load_config(home)
+    current = str((config.get("model") or {}).get("provider") or "auto")
+    rows = [
+        (r.provider_id, r.label, r.configured) for r in list_provider_picker_rows(home)
+    ]
+    rows.sort(key=lambda t: (t[0] == current, t[0]))
+    return {"current_provider": current, "provider_rows": rows}
+
+
 def build_repl_prompt_extras(home: Path, cwd: Path) -> tuple[SlashCommandCompleter, SlashCommandAutoSuggest]:
     """Return completer + auto-suggest for ``TerminalUI.prompt`` (slash / skills / models)."""
     extra = gateway_only_slash_completions()
@@ -49,9 +61,13 @@ def build_repl_prompt_extras(home: Path, cwd: Path) -> tuple[SlashCommandComplet
     def model_provider() -> dict[str, Any]:
         return _model_completer_payload(home=home)
 
+    def provider_provider() -> dict[str, Any]:
+        return _provider_completer_payload(home=home)
+
     completer = SlashCommandCompleter(
         skill_commands_provider=skills_provider,
         model_completer_provider=model_provider,
+        provider_completer_provider=provider_provider,
         extra_slash_commands=extra,
     )
     suggest = SlashCommandAutoSuggest(completer=completer)

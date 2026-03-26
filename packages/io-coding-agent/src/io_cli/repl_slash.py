@@ -171,6 +171,29 @@ async def handle_repl_slash_command(
             config["model"]["provider"] = selected
             save_config(config, home)
             return True, f"Default provider set to {selected}."
+        if repl_interactive:
+            from .provider_picker import run_provider_picker_dialog
+
+            config = load_config(home)
+            choice, why = run_provider_picker_dialog(home=home, config=config)
+            if choice is None:
+                hints = {
+                    "no_providers": "No providers known — run `io auth status` or configure keys.",
+                    "notty": "Interactive picker needs a terminal (TTY). Use `/provider openrouter` or `io auth`.",
+                    "cancelled": "Provider picker cancelled.",
+                    "no_matches": "Unknown or ambiguous provider — use `/provider` and pick with Tab, or `/provider <id>`.",
+                }
+                return True, hints.get(why, "Provider picker closed.")
+            known = {"auto"}
+            provs = auth_status(home).get("providers", {})
+            if isinstance(provs, dict):
+                known.update(str(name) for name in provs)
+            if choice not in known and not choice.startswith("custom:"):
+                return True, f"Unknown provider '{choice}'. Known providers: {', '.join(sorted(known))}"
+            config.setdefault("model", {})
+            config["model"]["provider"] = choice
+            save_config(config, home)
+            return True, f"Default provider set to {choice}."
         status = auth_status(home)
         providers = status.get("providers", {})
         active = str(status.get("active_provider") or "none")

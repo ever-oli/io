@@ -151,6 +151,57 @@ def test_repl_slash_model_interactive_picker(tmp_path: Path, monkeypatch) -> Non
     assert "mock/io-test" in msg
 
 
+def test_repl_slash_provider_interactive_picker(tmp_path: Path, monkeypatch) -> None:
+    """Bare `/provider` with repl_interactive runs the picker (mocked)."""
+    home = tmp_path / "home"
+    home.mkdir()
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    save_config({"model": {"provider": "mock", "default": "mock/io-test"}, "display": {}}, home)
+    monkeypatch.setattr(
+        "io_cli.provider_picker.run_provider_picker_dialog",
+        lambda **kwargs: ("openrouter", ""),
+    )
+    ns = argparse.Namespace(model=None, provider=None, cwd=cwd)
+    handled, msg = asyncio.run(
+        handle_repl_slash_command(
+            "/provider",
+            home=home,
+            cwd=cwd,
+            repl_args=ns,
+            load_extensions=False,
+            on_event=None,
+            repl_interactive=True,
+        )
+    )
+    assert handled is True
+    assert "openrouter" in msg
+    cfg = load_config(home)
+    assert cfg["model"]["provider"] == "openrouter"
+
+
+def test_repl_slash_provider_no_args_non_interactive_shows_status(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    save_config({"model": {"provider": "mock"}, "display": {}}, home)
+    ns = argparse.Namespace(model=None, provider=None, cwd=cwd)
+    handled, msg = asyncio.run(
+        handle_repl_slash_command(
+            "/provider",
+            home=home,
+            cwd=cwd,
+            repl_args=ns,
+            load_extensions=False,
+            on_event=None,
+            repl_interactive=False,
+        )
+    )
+    assert handled is True
+    assert "Active provider:" in msg
+
+
 def test_repl_slash_model_no_args_non_interactive_shows_status(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()

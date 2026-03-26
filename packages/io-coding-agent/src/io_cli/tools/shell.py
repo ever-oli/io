@@ -10,6 +10,7 @@ from io_agent import GLOBAL_TOOL_REGISTRY, Tool, ToolContext, ToolResult
 
 from ..config import get_io_home
 from ..security.tirith import check_command_security, tirith_approval_suffix
+from ..text_sanitize import strip_ansi
 
 
 DANGEROUS_SNIPPETS = (
@@ -70,7 +71,7 @@ class BashTool(Tool):
                     if not chunk:
                         break
                     parts.append(chunk)
-                    cb("bash", stream_name, chunk.decode("utf-8", errors="replace"))
+                    cb("bash", stream_name, strip_ansi(chunk.decode("utf-8", errors="replace")))
                 return b"".join(parts)
 
             stdout, stderr = await asyncio.gather(
@@ -80,8 +81,8 @@ class BashTool(Tool):
             await process.wait()
         else:
             stdout, stderr = await process.communicate()
-        output = stdout.decode("utf-8", errors="replace")
-        error = stderr.decode("utf-8", errors="replace")
+        output = strip_ansi(stdout.decode("utf-8", errors="replace"))
+        error = strip_ansi(stderr.decode("utf-8", errors="replace"))
         content = output.strip()
         if error.strip():
             content = f"{content}\n{error.strip()}".strip()

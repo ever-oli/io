@@ -78,6 +78,17 @@ class TestSessionOps:
         assert state.cwd == "/home/user/project"
 
     @pytest.mark.asyncio
+    async def test_new_session_persists_mcp_servers(self, agent):
+        response = await agent.new_session(
+            cwd="/home/user/project",
+            mcp_servers=[{"name": "cursor-ide-browser", "transport": "stdio"}],
+        )
+        state = agent.session_manager.get_session(response.session_id)
+        assert state is not None
+        assert state.mcp_servers
+        assert state.mcp_servers[0]["name"] == "cursor-ide-browser"
+
+    @pytest.mark.asyncio
     async def test_cancel_sets_event(self, agent):
         response = await agent.new_session(cwd=".")
         state = agent.session_manager.get_session(response.session_id)

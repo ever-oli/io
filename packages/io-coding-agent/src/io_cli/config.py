@@ -81,6 +81,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "max_simple_words": 28,
         "cheap_model": {},
     },
+    "semantic": {
+        "enabled": False,
+        "max_hits": 5,
+        "repo_map": False,
+        "repo_map_max_entries": 25,
+    },
     "auxiliary": {
         key: {"provider": "auto", "model": "", "base_url": "", "api_key": ""}
         for key in (
@@ -102,6 +108,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "show_reasoning": False,
         "streaming": False,
         "stream_tool_output": True,
+        "tool_trace": True,
+        "tool_trace_mode": "compact",
+        "tool_trace_icon_preset": "emoji",
+        "tool_trace_icon_overrides": {},
+        "tool_trace_show_duration": True,
+        "tool_trace_suppress_tools": ["echo"],
         "repl_multiline": True,
         # meta_submit = full prompt_toolkit multiline (Enter newline, Meta+Enter submit).
         # single_ctrl_j = pi-like: Enter submits, Ctrl-J inserts newline (default).
@@ -132,6 +144,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "gateway": {
         "enabled": False,
+        "tool_trace": True,
+        "tool_trace_mode": "compact",
+        "tool_trace_icon_preset": "emoji",
+        "tool_trace_icon_overrides": {},
+        "tool_trace_show_duration": True,
+        "tool_trace_split_messages": True,
+        "tool_trace_suppress_tools": ["echo"],
     },
     "honcho": {
         "enabled": False,

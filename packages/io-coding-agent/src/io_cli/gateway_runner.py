@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import signal
+import time
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,7 @@ from .main import run_prompt
 from .pairing import PairingStore
 from .session import SessionManager
 from .toolsets import enabled_toolsets_for_platform
+from .tool_trace import format_tool_trace_lines, should_trace_tool
 
 
 logger = logging.getLogger(__name__)
@@ -78,6 +80,8 @@ class GatewayRunner:
         poll_interval: float = 2.0,
         max_loops: int | None = None,
         cron_interval: float = 60.0,
+        reconnect_base_delay: float = 2.0,
+        reconnect_max_delay: float = 60.0,
     ) -> None:
         self.home = ensure_io_home(home)
         self.poll_interval = max(0.1, float(poll_interval))
@@ -92,6 +96,10 @@ class GatewayRunner:
         self._next_cron_tick_at: float | None = None
         self._active_sessions: set[str] = set()
         self.pairing_store = PairingStore(home=self.home)
+        self._reconnect_attempts: dict[Platform, int] = {}
+        self._next_reconnect_at: dict[Platform, float] = {}
+        self._reconnect_base_delay = max(0.0, float(reconnect_base_delay))
+        self._reconnect_max_delay = max(self._reconnect_base_delay, float(reconnect_max_delay))
 
     def request_stop(self) -> None:
         self.stop_event.set()
@@ -116,6 +124,85 @@ class GatewayRunner:
                 setattr(adapter, "gateway_runner", self)
             adapters[platform] = adapter
         return adapters
+
+    def _schedule_reconnect(self, platform: Platform, error: str, *, now: float | None = None) -> None:
+        """Schedule adapter reconnect with exponential backoff."""
+        if platform == Platform.LOCAL:
+            return
+        if now is None:
+            now = asyncio.get_running_loop().time()
+        attempt = int(self._reconnect_attempts.get(platform, 0)) + 1
+        self._reconnect_attempts[platform] = attempt
+        if self._reconnect_base_delay <= 0:
+            delay = 0.0
+        else:
+            delay = min(self._reconnect_max_delay, self._reconnect_base_delay * (2 ** (attempt - 1)))
+        self._next_reconnect_at[platform] = now + delay
+        write_runtime_status(
+            self.home,
+            platform=platform.value,
+            platform_state="retrying",
+            error_code="reconnect_scheduled",
+            error_message=f"{error} (attempt={attempt}, retry_in={delay:.1f}s)",
+        )
+        logger.warning(
+            "Gateway adapter %s reconnect scheduled (attempt=%s, delay=%.1fs): %s",
+            platform.value,
+            attempt,
+            delay,
+            error,
+        )
+
+    def _clear_reconnect(self, platform: Platform) -> None:
+        self._reconnect_attempts.pop(platform, None)
+        self._next_reconnect_at.pop(platform, None)
+
+    async def _attempt_reconnects(self, *, now: float) -> None:
+        """Try reconnecting adapters whose backoff timer is due."""
+        if self.gateway_config is None:
+            return
+        for platform in self.gateway_config.get_connected_platforms():
+            if platform == Platform.LOCAL:
+                continue
+            if platform not in ADAPTER_TYPES:
+                continue
+            active = self.adapters.get(platform)
+            if active is not None and not active.has_fatal_error:
+                continue
+            due_at = self._next_reconnect_at.get(platform, now)
+            if now < due_at:
+                continue
+
+            if active is not None:
+                try:
+                    await active.stop()
+                except Exception:
+                    pass
+                self.adapters.pop(platform, None)
+
+            cfg = self.gateway_config.platforms.get(platform)
+            if cfg is None or not cfg.enabled:
+                continue
+            adapter_type = ADAPTER_TYPES.get(platform)
+            if adapter_type is None:
+                continue
+            adapter = adapter_type(cfg)
+            if hasattr(adapter, "gateway_runner"):
+                setattr(adapter, "gateway_runner", self)
+            try:
+                adapter.set_message_handler(self._handle_message)
+                await adapter.start()
+                self.adapters[platform] = adapter
+                self._clear_reconnect(platform)
+                write_runtime_status(
+                    self.home,
+                    platform=platform.value,
+                    platform_state="running",
+                    error_code=None,
+                    error_message=None,
+                )
+            except Exception as exc:
+                self._schedule_reconnect(platform, str(exc), now=now)
 
     def _desired_state(self) -> str:
         return str(self.manager.load_state().get("desired_state", "stopped"))
@@ -970,9 +1057,66 @@ class GatewayRunner:
         toolsets = self._resolve_toolsets(source.platform)
         env_overrides = self._build_session_env(context, session_file)
         prompt = self._build_event_prompt(event)
+        runtime_cfg = load_config(self.home)
+        gateway_cfg = runtime_cfg.get("gateway") if isinstance(runtime_cfg.get("gateway"), dict) else {}
+        show_tool_trace = bool(gateway_cfg.get("tool_trace", True))
+        tool_trace_mode = str(gateway_cfg.get("tool_trace_mode", "compact") or "compact")
+        tool_trace_icon_preset = str(gateway_cfg.get("tool_trace_icon_preset", "emoji") or "emoji")
+        tool_trace_icon_overrides = (
+            gateway_cfg.get("tool_trace_icon_overrides")
+            if isinstance(gateway_cfg.get("tool_trace_icon_overrides"), dict)
+            else {}
+        )
+        tool_trace_show_duration = bool(gateway_cfg.get("tool_trace_show_duration", True))
+        tool_trace_split_messages = bool(gateway_cfg.get("tool_trace_split_messages", True))
+        tool_trace_suppress = (
+            gateway_cfg.get("tool_trace_suppress_tools")
+            if isinstance(gateway_cfg.get("tool_trace_suppress_tools"), list)
+            else []
+        )
+        trace_lines: list[str] = []
+        tool_started_at: dict[str, float] = {}
 
         self._active_sessions.add(session_key)
         try:
+            def _on_event(event_type: str, payload: dict[str, Any]) -> None:
+                if not show_tool_trace:
+                    return
+                if event_type == "tool_call_start":
+                    tool = str(payload.get("tool", "tool"))
+                    args = payload.get("arguments")
+                    if not isinstance(args, dict):
+                        return
+                    if not should_trace_tool(tool, suppress_tools=tool_trace_suppress):
+                        return
+                    tool_started_at[tool] = time.monotonic()
+                    for line in format_tool_trace_lines(
+                        tool,
+                        args,
+                        mode=tool_trace_mode,
+                        icon_preset=tool_trace_icon_preset,
+                        icon_overrides=tool_trace_icon_overrides,
+                    ):
+                        if len(trace_lines) < 24:
+                            trace_lines.append(line)
+                    return
+                if event_type == "tool_call_end" and tool_trace_show_duration:
+                    tool = str(payload.get("tool", "tool"))
+                    if not should_trace_tool(tool, suppress_tools=tool_trace_suppress):
+                        return
+                    started = tool_started_at.get(tool)
+                    duration = (time.monotonic() - started) if started is not None else None
+                    done_line = format_tool_trace_lines(
+                        tool,
+                        {},
+                        mode="compact",
+                        icon_preset=tool_trace_icon_preset,
+                        icon_overrides=tool_trace_icon_overrides,
+                        duration_seconds=duration,
+                    )[0]
+                    if len(trace_lines) < 24:
+                        trace_lines.append(done_line + " done")
+
             result = await run_prompt(
                 prompt,
                 cwd=cwd,
@@ -981,9 +1125,23 @@ class GatewayRunner:
                 toolsets=toolsets,
                 system_prompt_suffix=system_prompt_suffix,
                 env_overrides=env_overrides,
+                on_event=_on_event,
             )
             self._record_session_usage(context, result=result)
             response = result.text.strip() or "(no response)"
+            if trace_lines:
+                trace_text = "\n".join(trace_lines).strip()
+                if trace_text:
+                    if tool_trace_split_messages:
+                        await self._send_platform_message(
+                            source.platform,
+                            source.chat_id,
+                            trace_text,
+                            thread_id=source.thread_id,
+                            metadata={"session_path": str(result.session_path), "kind": "tool_trace"},
+                        )
+                    else:
+                        response = "\n".join([trace_text, "", response]).strip()
             await self._send_platform_message(
                 source.platform,
                 source.chat_id,
@@ -1031,6 +1189,7 @@ class GatewayRunner:
                     error_code="startup_failed",
                     error_message=str(exc),
                 )
+                self._schedule_reconnect(platform, str(exc), now=asyncio.get_running_loop().time())
 
         for platform in self.gateway_config.get_connected_platforms():
             if platform in self.adapters:
@@ -1076,6 +1235,18 @@ class GatewayRunner:
     async def _poll_platforms(self, *, timeout: float) -> list[MessageEvent]:
         events: list[MessageEvent] = []
         for platform, adapter in list(self.adapters.items()):
+            if adapter.has_fatal_error:
+                self._schedule_reconnect(
+                    platform,
+                    adapter.fatal_error_message or "adapter entered fatal state",
+                    now=asyncio.get_running_loop().time(),
+                )
+                try:
+                    await adapter.stop()
+                except Exception:
+                    pass
+                self.adapters.pop(platform, None)
+                continue
             try:
                 polled = await adapter.poll_once(timeout=timeout)
                 if polled:
@@ -1097,9 +1268,17 @@ class GatewayRunner:
                     error_code="poll_failed",
                     error_message=str(exc),
                 )
+                self._schedule_reconnect(platform, str(exc), now=asyncio.get_running_loop().time())
+                try:
+                    await adapter.stop()
+                except Exception:
+                    pass
+                self.adapters.pop(platform, None)
         return events
 
     async def _tick_once(self, *, force_cron: bool = False, poll_timeout: float = 0.0) -> dict[str, Any]:
+        now = asyncio.get_running_loop().time()
+        await self._attempt_reconnects(now=now)
         cron_results = await self._tick_cron_if_due(force=force_cron)
         events = await self._poll_platforms(timeout=poll_timeout)
         configured = self.gateway_config.get_connected_platforms() if self.gateway_config else []

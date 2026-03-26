@@ -8,10 +8,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from io_agent import Agent, ContextCompressor, SessionDB, resolve_runtime
+from io_agent import Agent, ContextCompressor, SessionDB, build_repo_map, resolve_runtime, semantic_search
 from io_ai.types import Usage
 
 from .config import ensure_io_home, load_config, load_env, load_soul, memory_snapshot
+from .context_references import expand_at_references
 from .extensions import ExtensionRunner
 from .session import SessionManager
 from .skin_engine import SkinEngine
@@ -99,11 +100,41 @@ async def run_prompt(
     for result in await extension_runner.emit("input", input_payload):
         if isinstance(result, dict) and result.get("text"):
             prompt = str(result["text"])
+    prompt = expand_at_references(prompt, cwd=cwd)
 
     system_prompt = load_soul(home, cwd=cwd, config=config)
+    semantic_cfg = config.get("semantic") if isinstance(config.get("semantic"), dict) else {}
+    semantic_enabled = bool(semantic_cfg.get("enabled", False) or env.get("IO_SEMANTIC_CONTEXT", "") in {"1", "true", "yes"})
+    repo_map_enabled = bool(semantic_cfg.get("repo_map", False) or env.get("IO_REPO_MAP_CONTEXT", "") in {"1", "true", "yes"})
+    semantic_block: str = ""
+    if semantic_enabled:
+        try:
+            max_hits = int(semantic_cfg.get("max_hits", 5) or 5)
+            hits = semantic_search(prompt, root=cwd, max_hits=max_hits)
+            if hits:
+                lines = ["## Semantic Context (best matching files)"]
+                for hit in hits:
+                    rel = str(hit.path.relative_to(cwd))
+                    lines.append(f"- {rel} (score={hit.score:.2f}) :: {hit.preview}")
+                semantic_block = "\n".join(lines)
+        except Exception:
+            semantic_block = ""
+    repo_map_block: str = ""
+    if repo_map_enabled:
+        try:
+            max_entries = int(semantic_cfg.get("repo_map_max_entries", 25) or 25)
+            entries = build_repo_map(root=cwd, max_entries=max_entries)
+            if entries:
+                repo_map_block = "## Repo Map (top weighted files)\n" + "\n".join(f"- {item}" for item in entries)
+        except Exception:
+            repo_map_block = ""
     memories = memory_snapshot(home)
     if memories:
         system_prompt = f"{system_prompt.strip()}\n\n{memories}"
+    if semantic_block:
+        system_prompt = f"{system_prompt.strip()}\n\n{semantic_block}"
+    if repo_map_block:
+        system_prompt = f"{system_prompt.strip()}\n\n{repo_map_block}"
     if system_prompt_suffix:
         suffix = str(system_prompt_suffix).strip()
         if suffix:

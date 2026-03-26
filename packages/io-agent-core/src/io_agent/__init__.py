@@ -16,6 +16,7 @@ from .events import (
 )
 from .providers import ResolvedRuntime, resolve_runtime
 from .session import SessionDB, SessionStore
+from .semantic_context import build_repo_map, semantic_search
 from .tools import (
     GLOBAL_TOOL_REGISTRY,
     Tool,
@@ -43,6 +44,8 @@ __all__ = [
     "SessionConfig",
     "SessionDB",
     "SessionStore",
+    "build_repo_map",
+    "semantic_search",
     "Tool",
     "ToolCallEndEvent",
     "ToolCallStartEvent",

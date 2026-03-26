@@ -61,6 +61,25 @@ def test_telegram_adapter_poll_once_parses_update(monkeypatch) -> None:
     assert events[0].attachments == []
 
 
+def test_telegram_adapter_poll_once_noop_when_updater_running(monkeypatch) -> None:
+    adapter = TelegramAdapter(PlatformConfig(enabled=True, token="123:secret"))
+
+    class _Updater:
+        running = True
+
+    class _App:
+        updater = _Updater()
+
+    adapter._app = _App()  # type: ignore[assignment]
+
+    async def fake_request(method: str, *, payload=None):  # pragma: no cover - should not run
+        raise AssertionError("poll_once should not call Bot API in updater push mode")
+
+    monkeypatch.setattr(adapter, "_request_json", fake_request)
+    events = asyncio.run(adapter.poll_once(timeout=0))
+    assert events == []
+
+
 def test_telegram_adapter_start_registers_bot_commands(monkeypatch) -> None:
     adapter = TelegramAdapter(PlatformConfig(enabled=True, token="123:secret"))
     calls: list[tuple[str, dict | None]] = []
@@ -77,6 +96,21 @@ def test_telegram_adapter_start_registers_bot_commands(monkeypatch) -> None:
     assert calls[1][0] == "setMyCommands"
     assert isinstance(calls[1][1], dict)
     assert calls[1][1]["commands"]
+
+
+def test_telegram_adapter_resets_offset_when_token_changes() -> None:
+    cfg = PlatformConfig(
+        enabled=True,
+        token="new-token",
+        extra={
+            "offset": 707834240,
+            "token_fingerprint": "oldfingerprint1234",
+        },
+    )
+    adapter = TelegramAdapter(cfg)
+    assert adapter.offset == 0
+    assert cfg.extra.get("offset") == 0
+    assert cfg.extra.get("token_fingerprint")
 
 
 def test_telegram_adapter_resolves_document_attachment_url(monkeypatch) -> None:
@@ -202,6 +236,79 @@ def test_gateway_runner_processes_telegram_message(tmp_path: Path, monkeypatch) 
     assert len(entries) == 1
     assert entries[0].input_tokens == 12
     assert entries[0].output_tokens == 5
+
+
+def test_gateway_runner_includes_tool_trace_in_reply(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("IO_TELEGRAM_ALLOW_ALL_USERS", "1")
+
+    class FakeTelegramAdapter(BasePlatformAdapter):
+        def __init__(self) -> None:
+            super().__init__(platform=Platform.TELEGRAM, config=PlatformConfig(enabled=True, token="test"))
+            self.sent: list[str] = []
+
+        async def _start(self) -> None:
+            return None
+
+        async def _stop(self) -> None:
+            return None
+
+        async def poll_once(self, *, timeout: float = 0.0) -> list[MessageEvent]:
+            del timeout
+            return [
+                MessageEvent(
+                    source=SessionSource(
+                        platform=Platform.TELEGRAM,
+                        chat_id="456",
+                        chat_name="ever",
+                        chat_type="dm",
+                        user_id="111",
+                        user_name="ever",
+                    ),
+                    text="hello gateway",
+                    message_type=MessageType.TEXT,
+                    message_id="m1",
+                )
+            ]
+
+        async def send_message(self, chat_id: str, content: str, *, thread_id: str | None = None, metadata: dict | None = None) -> dict:
+            _ = (chat_id, thread_id, metadata)
+            self.sent.append(content)
+            return {"ok": True}
+
+    fake_adapter = FakeTelegramAdapter()
+    manager = GatewayManager(home=tmp_path / "home")
+    manager.configure(platforms=["telegram"], home_channel="ops-room", token="123:test")
+    cfg = load_config(manager.home)
+    cfg["gateway"] = {"tool_trace": True}
+    from io_cli.config import save_config
+    save_config(cfg, manager.home)
+
+    monkeypatch.setattr(
+        GatewayRunner,
+        "_build_adapter_map",
+        lambda self, config: {Platform.TELEGRAM: fake_adapter},
+    )
+
+    async def fake_run_prompt(prompt: str, **kwargs):
+        on_event = kwargs.get("on_event")
+        if callable(on_event):
+            on_event("tool_call_start", {"tool": "search_files", "arguments": {"pattern": "x", "path": "/tmp"}})
+        session_path = kwargs["session_path"]
+        return PromptResult(
+            text="telegram reply",
+            model="mock/io-test",
+            provider="mock",
+            session_path=session_path,
+            messages=[],
+            loaded_extensions=[],
+            usage=Usage(input_tokens=1, output_tokens=1, cost_usd=0.0),
+        )
+
+    monkeypatch.setattr("io_cli.gateway_runner.run_prompt", fake_run_prompt)
+    _ = GatewayRunner(home=manager.home, poll_interval=0.1).run_sync(once=True)
+    assert len(fake_adapter.sent) >= 2
+    assert "search_files" in fake_adapter.sent[0]
+    assert "telegram reply" in fake_adapter.sent[1]
 
 
 def test_gateway_runner_includes_attachment_context_in_prompt(tmp_path: Path, monkeypatch) -> None:

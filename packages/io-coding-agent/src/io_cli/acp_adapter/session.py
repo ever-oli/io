@@ -39,6 +39,7 @@ class ACPAgentProxy:
     model: str = ""
     provider: str | None = None
     enabled_toolsets: list[str] = field(default_factory=lambda: ["io-acp"])
+    mcp_servers: list[dict[str, Any]] = field(default_factory=list)
     cancelled: bool = False
 
     def interrupt(self) -> None:
@@ -63,6 +64,7 @@ class ACPAgentProxy:
             load_extensions=True,
             env_overrides={
                 "IO_SESSION_ID": task_id or self.session_id,
+                "IO_MCP_SERVERS": json.dumps(self.mcp_servers, ensure_ascii=False),
             },
             session_source="acp",
         )
@@ -89,6 +91,7 @@ class SessionState:
     session_file: Path
     cwd: str = "."
     model: str = ""
+    mcp_servers: list[dict[str, Any]] = field(default_factory=list)
     history: list[dict[str, Any]] = field(default_factory=list)
     cancel_event: Event | None = None
 
@@ -108,17 +111,23 @@ class SessionManager:
     def _session_file(self, session_id: str) -> Path:
         return self.sessions_root / f"{session_id}.jsonl"
 
-    def create_session(self, cwd: str = ".") -> SessionState:
+    def create_session(self, cwd: str = ".", mcp_servers: list[dict[str, Any]] | None = None) -> SessionState:
         session_id = str(uuid.uuid4())
         session_file = self._session_file(session_id)
         JsonlSessionManager.create_at_path(Path(cwd), session_file=session_file, session_id=session_id)
-        agent = self._make_agent(session_id=session_id, cwd=cwd, session_file=session_file)
+        agent = self._make_agent(
+            session_id=session_id,
+            cwd=cwd,
+            session_file=session_file,
+            mcp_servers=list(mcp_servers or []),
+        )
         state = SessionState(
             session_id=session_id,
             agent=agent,
             session_file=session_file,
             cwd=str(cwd),
             model=str(getattr(agent, "model", "") or ""),
+            mcp_servers=list(mcp_servers or []),
             history=[],
             cancel_event=Event(),
         )
@@ -142,7 +151,12 @@ class SessionManager:
         deleted = self._delete_persisted(session_id)
         return state is not None or deleted
 
-    def fork_session(self, session_id: str, cwd: str = ".") -> SessionState | None:
+    def fork_session(
+        self,
+        session_id: str,
+        cwd: str = ".",
+        mcp_servers: list[dict[str, Any]] | None = None,
+    ) -> SessionState | None:
         original = self.get_session(session_id)
         if original is None:
             return None
@@ -153,6 +167,7 @@ class SessionManager:
             cwd=cwd,
             model=original.model or None,
             session_file=session_file,
+            mcp_servers=list(mcp_servers or original.mcp_servers),
         )
         state = SessionState(
             session_id=new_id,
@@ -160,6 +175,7 @@ class SessionManager:
             session_file=session_file,
             cwd=str(cwd),
             model=str(getattr(agent, "model", original.model) or original.model or ""),
+            mcp_servers=list(mcp_servers or original.mcp_servers),
             history=copy.deepcopy(original.history),
             cancel_event=Event(),
         )
@@ -176,6 +192,7 @@ class SessionManager:
                     "session_id": state.session_id,
                     "cwd": state.cwd,
                     "model": state.model,
+                    "mcp_servers": list(state.mcp_servers),
                     "history_len": len(state.history),
                     "session_file": str(state.session_file),
                 }
@@ -191,6 +208,7 @@ class SessionManager:
                     "session_id": session_id,
                     "cwd": model_config.get("cwd", row.get("cwd") or "."),
                     "model": row.get("model") or "",
+                    "mcp_servers": model_config.get("mcp_servers") or [],
                     "history_len": row.get("message_count") or 0,
                     "session_file": model_config.get("session_file") or str(self._session_file(session_id)),
                 }
@@ -204,6 +222,16 @@ class SessionManager:
         state.cwd = str(cwd)
         if hasattr(state.agent, "cwd"):
             state.agent.cwd = str(cwd)
+        self._persist(state)
+        return state
+
+    def update_mcp_servers(self, session_id: str, mcp_servers: list[dict[str, Any]] | None) -> SessionState | None:
+        state = self.get_session(session_id)
+        if state is None:
+            return None
+        state.mcp_servers = list(mcp_servers or [])
+        if hasattr(state.agent, "mcp_servers"):
+            state.agent.mcp_servers = list(state.mcp_servers)
         self._persist(state)
         return state
 
@@ -239,6 +267,7 @@ class SessionManager:
             model_config={
                 "cwd": state.cwd,
                 "session_file": str(state.session_file),
+                "mcp_servers": state.mcp_servers,
             },
         )
         self._get_db().clear_messages(state.session_id)
@@ -268,6 +297,7 @@ class SessionManager:
             cwd=cwd,
             model=row.get("model") or None,
             session_file=session_file,
+            mcp_servers=model_config.get("mcp_servers") if isinstance(model_config.get("mcp_servers"), list) else None,
         )
         state = SessionState(
             session_id=session_id,
@@ -275,6 +305,7 @@ class SessionManager:
             session_file=session_file,
             cwd=cwd,
             model=str(row.get("model") or getattr(agent, "model", "") or ""),
+            mcp_servers=model_config.get("mcp_servers") if isinstance(model_config.get("mcp_servers"), list) else [],
             history=history,
             cancel_event=Event(),
         )
@@ -298,6 +329,7 @@ class SessionManager:
         cwd: str,
         model: str | None = None,
         session_file: Path | None = None,
+        mcp_servers: list[dict[str, Any]] | None = None,
     ):
         if self._agent_factory is not None:
             return self._agent_factory()
@@ -307,6 +339,7 @@ class SessionManager:
             session_file=session_file or self._session_file(session_id),
             cwd=str(cwd),
             model=model or "",
+            mcp_servers=list(mcp_servers or []),
         )
 
     @staticmethod

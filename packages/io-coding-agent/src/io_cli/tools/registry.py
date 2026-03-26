@@ -87,6 +87,22 @@ TOOL_METADATA: dict[str, ToolMetadata] = {
     "browser_console": ToolMetadata("browser_console", "browser", "🌐"),
 }
 
+# Hermes-style helper aliases -> IO canonical tool names.
+HERMES_TOOL_ALIASES: dict[str, str] = {
+    "read": "read_file",
+    "write": "write_file",
+    "edit": "patch",
+    "find": "search_files",
+    "grep": "search_files",
+    "search": "search_files",
+    "shell": "bash",
+    "run_shell": "bash",
+    "run_terminal_cmd": "terminal",
+    "terminal_exec": "terminal",
+    "process_wait": "process",
+    "process_kill": "process",
+}
+
 
 def get_tool_registry() -> ToolRegistry:
     return GLOBAL_TOOL_REGISTRY
@@ -140,6 +156,22 @@ def get_definitions(tool_names: set[str], *, quiet: bool = False) -> list[dict[s
             }
         )
     return definitions
+
+
+def resolve_tool_name(name: str) -> str:
+    """Resolve a tool/helper alias to a canonical registered tool name."""
+    raw = str(name or "").strip()
+    if not raw:
+        return raw
+    lowered = raw.lower()
+    mapped = HERMES_TOOL_ALIASES.get(lowered, lowered)
+    if mapped in GLOBAL_TOOL_REGISTRY.tools:
+        return mapped
+    return raw
+
+
+def get_hermes_alias_map() -> dict[str, str]:
+    return dict(HERMES_TOOL_ALIASES)
 
 
 def get_available_toolsets() -> dict[str, dict[str, Any]]:

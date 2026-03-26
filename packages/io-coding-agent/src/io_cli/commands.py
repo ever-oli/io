@@ -82,8 +82,12 @@ COMMAND_REGISTRY: list[CommandDef] = [
         "Configuration",
         args_hint="[id]",
     ),
-    CommandDef("provider", "Show available providers and current provider",
-               "Configuration"),
+    CommandDef(
+        "provider",
+        "REPL: fuzzy Tab dropdown when no args; else set default provider",
+        "Configuration",
+        args_hint="[id]",
+    ),
     CommandDef("prompt", "View/set custom system prompt", "Configuration",
                cli_only=True, args_hint="[text]", subcommands=("clear",)),
     CommandDef("personality", "Set a predefined personality", "Configuration",
@@ -149,6 +153,7 @@ COMMAND_REGISTRY: list[CommandDef] = [
         "Tools & Skills",
         args_hint="start|run|status",
         subcommands=("start", "run", "status"),
+        aliases=("gate",),
     ),
     CommandDef(
         "security",
@@ -338,15 +343,21 @@ class SlashCommandCompleter(Completer):
         self,
         skill_commands_provider: Callable[[], Mapping[str, dict[str, Any]]] | None = None,
         model_completer_provider: Callable[[], dict[str, Any]] | None = None,
+        provider_completer_provider: Callable[[], dict[str, Any]] | None = None,
         extra_slash_commands: Mapping[str, str] | None = None,
     ) -> None:
         self._skill_commands_provider = skill_commands_provider
         # model_completer_provider returns {"current_provider": str,
         #   "providers": {id: label, ...}, "models_for": callable(provider) -> list[str]}
         self._model_completer_provider = model_completer_provider
+        # provider_completer_provider returns {"current_provider": str,
+        #   "provider_rows": list[tuple[str, str, bool]]}  # id, label, configured
+        self._provider_completer_provider = provider_completer_provider
         self._extra_slash_commands: dict[str, str] = dict(extra_slash_commands or {})
         self._model_info_cache: dict[str, Any] | None = None
         self._model_info_cache_time: float = 0
+        self._provider_info_cache: dict[str, Any] | None = None
+        self._provider_info_cache_time: float = 0
 
     def _get_model_info(self) -> dict[str, Any]:
         """Get cached model/provider info for /model autocomplete."""
@@ -362,6 +373,22 @@ class SlashCommandCompleter(Completer):
         except Exception:
             self._model_info_cache = self._model_info_cache or {}
         return self._model_info_cache
+
+    def _get_provider_info(self) -> dict[str, Any]:
+        """Cached provider list for ``/provider`` autocomplete."""
+        import time
+
+        now = time.monotonic()
+        if self._provider_info_cache is not None and now - self._provider_info_cache_time < 60:
+            return self._provider_info_cache
+        if self._provider_completer_provider is None:
+            return {}
+        try:
+            self._provider_info_cache = self._provider_completer_provider() or {}
+            self._provider_info_cache_time = now
+        except Exception:
+            self._provider_info_cache = self._provider_info_cache or {}
+        return self._provider_info_cache
 
     def _iter_skill_commands(self) -> Mapping[str, dict[str, Any]]:
         if self._skill_commands_provider is None:
@@ -401,6 +428,9 @@ class SlashCommandCompleter(Completer):
         word = text[i + 1:]
         if not word:
             return None
+        # `@path` context-reference completion (even for simple filenames).
+        if word.startswith("@"):
+            return word
         # Only trigger path completion for path-like tokens
         if word.startswith(("./", "../", "~/", "/")) or "/" in word:
             return word
@@ -409,7 +439,9 @@ class SlashCommandCompleter(Completer):
     @staticmethod
     def _path_completions(word: str, limit: int = 30):
         """Yield Completion objects for file paths matching *word*."""
-        expanded = os.path.expanduser(word)
+        at_prefix = word.startswith("@")
+        raw_word = word[1:] if at_prefix else word
+        expanded = os.path.expanduser(raw_word)
         # Split into directory part and prefix to match inside it
         if expanded.endswith("/"):
             search_dir = expanded
@@ -435,9 +467,9 @@ class SlashCommandCompleter(Completer):
             is_dir = os.path.isdir(full_path)
 
             # Build the completion text (what replaces the typed word)
-            if word.startswith("~"):
+            if raw_word.startswith("~"):
                 display_path = "~/" + os.path.relpath(full_path, os.path.expanduser("~"))
-            elif os.path.isabs(word):
+            elif os.path.isabs(raw_word):
                 display_path = full_path
             else:
                 # Keep relative
@@ -445,6 +477,8 @@ class SlashCommandCompleter(Completer):
 
             if is_dir:
                 display_path += "/"
+            if at_prefix:
+                display_path = "@" + display_path
 
             suffix = "/" if is_dir else ""
             meta = "dir" if is_dir else _file_size_label(full_path)
@@ -517,6 +551,38 @@ class SlashCommandCompleter(Completer):
                                     display=display_name,
                                     display_meta=meta,
                                 )
+                return
+
+            # /provider: fuzzy-style menu — match id or label prefix / substring
+            if base_cmd == "/provider" and " " not in sub_text:
+                info = self._get_provider_info()
+                rows = info.get("provider_rows") or []
+                sub_l = sub_lower
+                limit = 80
+                count = 0
+                for pid, plabel, ok in rows:
+                    pid_l = pid.lower()
+                    lab_l = plabel.lower()
+                    if sub_l:
+                        if not (
+                            pid_l.startswith(sub_l)
+                            or lab_l.startswith(sub_l)
+                            or sub_l in pid_l
+                            or sub_l in lab_l
+                        ):
+                            continue
+                    meta = plabel if ok else f"{plabel} (not configured)"
+                    if pid == "auto":
+                        meta = plabel
+                    yield Completion(
+                        pid,
+                        start_position=-len(sub_text),
+                        display=pid,
+                        display_meta=meta,
+                    )
+                    count += 1
+                    if count >= limit:
+                        break
                 return
 
             # Static subcommand completions
@@ -638,6 +704,15 @@ class SlashCommandAutoSuggest(AutoSuggest):
                         candidate = f"{pid}:"
                         if candidate.lower().startswith(sub_lower) and candidate.lower() != sub_lower:
                             return Suggestion(candidate[len(sub_text):])
+
+        # /provider ghost text: complete provider id
+        if base_cmd == "/provider" and " " not in sub_text and self._completer:
+            info = self._completer._get_provider_info()
+            rows = info.get("provider_rows") or []
+            for pid, _plabel, _ok in rows:
+                pid_l = pid.lower()
+                if pid_l.startswith(sub_lower) and pid_l != sub_lower:
+                    return Suggestion(pid[len(sub_text) :])
 
         # Static subcommands
         if base_cmd in SUBCOMMANDS and SUBCOMMANDS[base_cmd]:
