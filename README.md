@@ -4,21 +4,33 @@
 
 # IO
 
-IO is a clean-room Python rewrite combining the best of [pi-mono](https://github.com/badlogic/pi-mono) and Hermes, organized as an 8-package monorepo for AI agents and coding assistants.
+A professional-grade AI coding harness engineered for the modern development workflow.
 
-**Version:** `0.3.0` — Production-ready with **95% Claude Code feature parity**
+**Version:** `0.3.0` — Production-ready
 
-## Packages
+## Overview
+
+IO is an advanced AI coding assistant designed for professional developers who demand precision, flexibility, and comprehensive tooling. Built on a robust 8-package architecture, IO delivers a complete development environment that seamlessly integrates AI capabilities into existing workflows.
+
+### Design Philosophy
+
+IO synthesizes proven patterns from industry-leading tools while maintaining architectural independence:
+
+- **Hermes Architecture**: Command routing and gateway patterns for multi-platform messaging
+- **Clean-Room Implementation**: Original Python codebase optimized for the Python ecosystem
+- **Professional Standards**: Enterprise-grade security, audit trails, and permission systems
+
+## Architecture
 
 | Package | Purpose |
 |---------|---------|
-| `io-ai` | Multi-provider LLM runtime, model registry, auth, cost tracking |
-| `io-agent-core` | Agent loop, tools, events, session management |
-| `io-coding-agent` | CLI, REPL, session manager, built-in tools |
+| `io-ai` | Multi-provider LLM runtime, model registry, authentication, cost tracking |
+| `io-agent-core` | Agent loop, tool execution, event system, session management |
+| `io-coding-agent` | CLI interface, REPL, session manager, built-in tools |
 | `io-tui` | Terminal UI components (prompt_toolkit, Rich) |
-| `io-web-ui` | FastAPI web runtime and browser chat |
-| `io-pods` | Local pod lifecycle and vLLM management |
-| `io-bot` | Telegram bot, morning briefings, notifications |
+| `io-web-ui` | FastAPI web runtime and browser chat interface |
+| `io-pods` | Local pod lifecycle management and vLLM orchestration |
+| `io-bot` | Telegram bot, morning briefings, notification system |
 | `io-swarm` | Workflow swarm management, Lean formalization, background agents |
 
 ## Quick Start
@@ -27,43 +39,44 @@ IO is a clean-room Python rewrite combining the best of [pi-mono](https://github
 # Install dependencies
 uv sync
 
-# Run the CLI
+# Launch the interactive CLI
 uv run io --help
 uv run io chat
 
-# Run tests
+# Run the test suite
 uv run pytest
 ```
 
-## Features
+## Core Capabilities
 
-### Core Capabilities
+| Feature | Description |
+|---------|-------------|
+| **Multiline REPL** | Multiple input modes: `single_ctrl_j` (default), `meta_submit`, or `buffer` |
+| **Token Streaming** | Real-time response streaming via `io_ai.stream` |
+| **Tool Execution** | Streaming output for shell commands and file operations |
+| **SIGINT Handling** | Graceful interruption with `Agent.interrupt_requested` |
+| **Plan Mode** | Structured step-by-step task execution with checkpointing |
+| **Memory System** | Cross-session persistence with automatic extraction |
+| **Smart Compression** | Intelligent context compaction for long sessions |
+| **Permission System** | AI-powered risk classification with configurable policies |
+| **Sub-Agents** | 8 specialized agent types for complex multi-step tasks |
+| **MCP Integration** | Full Model Context Protocol support for external tools |
+| **Session Management** | Fork, snapshot, teleport, and rewind capabilities |
+| **Browser Automation** | Chrome/CDP integration for web testing |
+| **Task System** | Background async task execution |
+| **Bug Hunter** | Automated security and code smell detection |
+| **Auto-Fix** | Automated linting and formatting corrections |
+| **LSP Integration** | Full Language Server Protocol support for code intelligence |
+| **Todo Management** | Session-scoped task tracking |
+| **Brief Mode** | Concise response toggle |
+| **Context Viz** | Visual session state representation |
+| **Notebook Support** | Jupyter notebook editing and execution |
+| **Cost Tracking** | Budget monitoring with alerts and detailed breakdowns |
+| **IDE Integration** | Native support for VS Code, JetBrains, Cursor, and Windsurf |
+| **Voice Interface** | Speech-to-text and text-to-speech capabilities |
+| **Analytics** | Comprehensive usage tracking and insights |
 
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **Multiline REPL** | `single_ctrl_j` (default), `meta_submit`, or `buffer` modes | ✅ |
-| **Token Streaming** | Real-time streaming via `io_ai.stream` | ✅ |
-| **Tool Execution** | Streaming output for `terminal` / `bash` | ✅ |
-| **SIGINT Handling** | Graceful interruption with `Agent.interrupt_requested` | ✅ |
-| **Plan Mode** | Structured step-by-step task execution | ✅ |
-| **Memory System** | Cross-session persistence with auto-extraction | ✅ |
-| **Smart Compression** | Intelligent context compaction | ✅ |
-| **Permission System** | AI-powered classification with risk levels | ✅ |
-| **Sub-Agents** | 8 specialized agent types for complex tasks | ✅ |
-| **MCP Integration** | Full Model Context Protocol support | ✅ |
-| **Session Management** | Fork, snapshot, teleport, rewind | ✅ |
-| **Browser Automation** | Chrome/CDP integration | ✅ |
-| **Task System** | Background async task execution | ✅ |
-| **Bug Hunter** | Automated code analysis | ✅ |
-| **Auto-Fix** | Automated linting/formatting fixes | ✅ |
-| **LSP Support** | Language Server Protocol | ✅ |
-| **Todo Management** | Session-scoped todo lists | ✅ |
-| **Brief Mode** | Concise response toggle | ✅ |
-| **Context Viz** | Visual session state | ✅ |
-| **Notebook Support** | Jupyter notebook editing | ✅ |
-| **Cost Tracking** | Budget alerts and breakdowns | ✅ |
-
-### REPL Commands
+## REPL Commands
 
 ```bash
 # Plan Mode - Structured execution
@@ -124,6 +137,23 @@ uv run pytest
 
 # Utilities
 /undo, /retry, /sessions, /status, /clear, /copy
+
+# IDE Integration (VS Code, JetBrains, Cursor, Windsurf)
+/ide status                          # Check available IDEs
+/ide connect vscode                  # Connect to specific IDE
+/ide open src/main.py 42             # Open file at line 42
+/ide diff src/main.py                # Show diff in IDE
+
+# Voice Support (STT/TTS)
+/voice record 10                     # Record 10 seconds
+/voice transcribe                    # Transcribe to text
+/voice speak "Hello world"           # Text-to-speech
+/voice config                        # Configure voice settings
+
+# Analytics & Insights
+/analytics report week               # Weekly usage report
+/analytics insights                  # AI-powered usage insights
+/analytics export json               # Export analytics data
 ```
 
 ### Gateways
@@ -158,64 +188,85 @@ io swarm cancel io-001
 io briefing "AI news" "tech startups"
 ```
 
-## Tools
+## Tool Inventory
 
-IO includes **40+ tools** organized by category:
+IO provides **55+ professional-grade tools** organized by domain:
 
-### File & Code
-- `read`, `write`, `edit`, `patch` - File operations
-- `search_files`, `grep`, `find`, `ls` - Search & discovery
-- `diff` - Unified diff display
-- `rewind` - File version management
+### File and Code Operations
+- `read`, `write`, `edit`, `patch` — File operations
+- `search_files`, `grep`, `find`, `ls` — Search and discovery
+- `diff` — Unified diff display
+- `rewind` — File version management
 
-### Terminal & Execution
-- `bash`, `terminal`, `process` - Shell execution
-- `task_create`, `task_list`, `task_stop` - Background tasks
+### Terminal and Execution
+- `bash`, `terminal`, `process` — Shell execution
+- `task_create`, `task_list`, `task_stop` — Background task management
 
-### Browser & Web
-- `browser_navigate`, `browser_click`, `browser_type` - Chrome CDP
-- `web_search`, `web_extract` - Web scraping
+### Browser and Web
+- `browser_navigate`, `browser_click`, `browser_type` — Chrome CDP automation
+- `web_search`, `web_extract` — Web scraping and research
 
-### Analysis & Quality
-- `bughunter` - Security/code smell detection
-- `lsp`, `lsp_diagnostics` - Language server protocol
-- `autofix_pr` - Automated PR fixing
+### Analysis and Quality Assurance
+- `bughunter` — Security vulnerability and code smell detection
+- `lsp`, `lsp_diagnostics` — Language server integration
+- `autofix_pr` — Automated pull request fixing
 
-### Memory & State
-- `memory`, `nuggets` - Persistent memory
-- `todo_write`, `todo_list` - Task tracking
-- `plan_create`, `plan_list` - Plan management
+### Memory and State Management
+- `memory`, `nuggets` — Persistent memory systems
+- `todo_write`, `todo_list` — Task tracking
+- `plan_create`, `plan_list` — Plan management
+
+### Communication and Integration
+- `ask_user` — Interactive user prompts
+- `agent`, `multi_agent` — Sub-agent orchestration
+- `skill` — Dynamic skill execution
 
 ### MCP (Model Context Protocol)
 - `mcp_connect`, `mcp_list`, `mcp_read`, `mcp_call`
 
-### Interactive
-- `ask_user` - User prompts
-- `agent`, `multi_agent` - Sub-agent spawning
-- `skill` - Dynamic skill execution
+### IDE Integration
+- `ide_open`, `ide_diff`, `ide_sync_selection` — File operations
+- `ide_status`, `ide_connect` — Connection management
+
+### Voice Interface
+- `voice_record`, `voice_transcribe`, `voice_speak` — Audio operations
+- `voice_status`, `voice_config`, `voice_list_voices` — Configuration
+
+### Analytics
+- `analytics_report`, `analytics_status` — Reporting
+- `analytics_export`, `analytics_insights` — Data analysis
 
 ## Configuration
 
-### Models
+### Model Selection
 
 ```bash
+# Switch models interactively
 /model anthropic:claude-3-5-sonnet-20241022
+
+# Search available models
 io models --search claude
 ```
 
-Default: OpenRouter free tier
+Default provider: OpenRouter free tier
 
 ### Authentication
 
 ```bash
-io auth copilot-login      # GitHub Copilot
+# GitHub Copilot integration
+io auth copilot-login
+
+# MCP server authentication
 io auth mcp-login <server> <token>
+
+# Check authentication status
 io auth status
 ```
 
-### Feature Flags
+### Feature Configuration
 
-`~/.io/config.yaml`:
+Configure via `~/.io/config.yaml`:
+
 ```yaml
 semantic:
   enabled: true
@@ -228,33 +279,53 @@ soul:
   workspace_root: "/Users/you/workspace"
 
 permissions:
-  mode: "auto"  # auto, accept_edits, accept_all, bypass, prompt
-  
+  mode: "auto"  # Options: auto, accept_edits, accept_all, bypass, prompt
+
 cost_tracking:
-  daily_budget: 10.0    # USD
-  alert_threshold: 0.8  # Alert at 80%
+  daily_budget: 10.0      # USD
+  alert_threshold: 0.8    # Alert at 80% of budget
+
+voice:
+  enabled: true
+  stt_provider: "whisper"
+  tts_provider: "system"
+  auto_tts: false
+
+analytics:
+  enabled: true
+  retention_days: 90
 ```
 
-## Memory Stack
+## Data Storage
 
-- **Nuggets** — HRR vectors in `~/.io/nuggets/`
-- **Memories** — Snapshots in `~/.io/memories/`
-- **Honcho** — External memory API v3 (optional)
-- **Plan Store** — `~/.io/plans/`
-- **Session Store** — `~/.io/agent/sessions/`
-- **Backups** — `~/.io/backups/`
-- **Snapshots** — `~/.io/snapshots/`
-- **Tasks** — `~/.io/tasks/`
+IO maintains a structured data hierarchy in `~/.io/`:
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| **Nuggets** | `~/.io/nuggets/` | HRR vector semantic memory |
+| **Memories** | `~/.io/memories/` | Cross-session memory snapshots |
+| **Honcho** | External API | Optional external memory service |
+| **Plans** | `~/.io/plans/` | Persistent task plans |
+| **Sessions** | `~/.io/agent/sessions/` | Session history and state |
+| **Backups** | `~/.io/backups/` | Automatic configuration backups |
+| **Snapshots** | `~/.io/snapshots/` | Session checkpoints |
+| **Tasks** | `~/.io/tasks/` | Background task queue |
+| **Analytics** | `~/.io/analytics.db` | Usage statistics and metrics |
 
 ## Security
 
-- **Tirith** — Command validation for `bash`/`terminal`
-- **AI-Powered Permissions** — Risk classification (safe → critical)
-- **Permission Modes** — auto, accept_edits, accept_all, bypass, prompt
-- **Approval Queue** — Tool execution workflows
+IO implements a comprehensive security model:
+
+- **Tirith** — Command validation and sanitization for shell operations
+- **AI-Powered Permissions** — Automated risk classification from safe to critical
+- **Permission Modes** — Configurable policies: auto, accept_edits, accept_all, bypass, prompt
+- **Approval Queue** — Structured approval workflows for sensitive operations
 
 ```bash
+# Install Tirith security validator
 io security tirith-install
+
+# Run security diagnostics
 io doctor
 ```
 
@@ -269,37 +340,32 @@ tests/             # Test suite (50+ files)
 scripts/           # Automation
 ```
 
-**Global install:**
+**Global installation:**
 ```bash
 uv tool install .
 ```
 
-## Claude Code Parity
+## Acknowledgments
 
-IO now has **95% feature parity** with Claude Code:
+IO draws inspiration from several industry-leading tools:
 
-| Feature | Claude Code | IO | Status |
-|---------|-------------|----|--------|
-| Core Tools | 40 | 40+ | ✅ 100% |
-| Commands | 50 | 35 | ✅ 95% |
-| MCP | ✅ | ✅ | ✅ 100% |
-| Permissions | ✅ | ✅ | ✅ 95% |
-| Session | ✅ | ✅ | ✅ 95% |
-| IDE | ✅ | ❌ | ⚠️ Missing |
-| Voice | ✅ | ❌ | ⚠️ Missing |
-| Analytics | ✅ | ❌ | ⚠️ Missing |
+- **Hermes** — Gateway architecture and multi-platform messaging patterns
+- **Claude Code** — Command structure and interaction design
+- **pi-mono** — Clean architectural principles
 
-**IO Exceeds Claude Code In:**
-- Memory system (HRR vectors + Honcho)
-- Gateway ecosystem (8 platforms)
-- Testing (50+ test files)
-- Multi-provider support
-- Python ecosystem integration
+IO extends these foundations with:
+- Advanced memory systems (HRR vectors + Honcho integration)
+- Multi-platform gateway ecosystem (8 messaging platforms)
+- Comprehensive test coverage (50+ test files)
+- Native Python ecosystem integration
 
 ## Documentation
 
-- [`docs/`](docs/) — Architecture and features
-- [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md) — Memory systems
+- [`docs/`](docs/) — Architecture and feature documentation
+- [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md) — Memory system architecture
+- [`docs/ide-integration.md`](docs/ide-integration.md) — IDE setup and configuration
+- [`docs/voice-interface.md`](docs/voice-interface.md) — Voice setup and providers
+- [`docs/analytics.md`](docs/analytics.md) — Usage tracking and insights
 
 ## License
 

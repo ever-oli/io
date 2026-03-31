@@ -29,6 +29,10 @@ def _register_builtin_tool_modules() -> None:
         diff_tool,
         rewind_tool,
         skill_tool,
+        # Phase 4: IDE, Voice, Analytics
+        ide_tools,
+        voice_tools,
+        analytics,
     )
 
     try:
@@ -113,6 +117,24 @@ TOOL_METADATA: dict[str, ToolMetadata] = {
     "mcp_list": ToolMetadata("mcp_list", "mcp", "📋"),
     "mcp_read": ToolMetadata("mcp_read", "mcp", "📖"),
     "mcp_call": ToolMetadata("mcp_call", "mcp", "🔧"),
+    # Phase 4: IDE Integration
+    "ide_open": ToolMetadata("ide_open", "ide", "🖥️"),
+    "ide_diff": ToolMetadata("ide_diff", "ide", "📝"),
+    "ide_sync_selection": ToolMetadata("ide_sync_selection", "ide", "📍"),
+    "ide_status": ToolMetadata("ide_status", "ide", "ℹ️"),
+    "ide_connect": ToolMetadata("ide_connect", "ide", "🔌"),
+    # Phase 4: Voice Support
+    "voice_record": ToolMetadata("voice_record", "voice", "🎤"),
+    "voice_transcribe": ToolMetadata("voice_transcribe", "voice", "📝"),
+    "voice_speak": ToolMetadata("voice_speak", "voice", "🔊"),
+    "voice_status": ToolMetadata("voice_status", "voice", "ℹ️"),
+    "voice_config": ToolMetadata("voice_config", "voice", "⚙️"),
+    "voice_list_voices": ToolMetadata("voice_list_voices", "voice", "🗣️"),
+    # Phase 4: Analytics
+    "analytics_report": ToolMetadata("analytics_report", "analytics", "📊"),
+    "analytics_status": ToolMetadata("analytics_status", "analytics", "📈"),
+    "analytics_export": ToolMetadata("analytics_export", "analytics", "📤"),
+    "analytics_insights": ToolMetadata("analytics_insights", "analytics", "💡"),
 }
 
 # Hermes-style helper aliases -> IO canonical tool names.

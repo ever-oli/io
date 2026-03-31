@@ -1,0 +1,143 @@
+{
+  "name": "io-vscode",
+  "displayName": "IO - AI Coding Assistant",
+  "description": "VS Code extension for IO AI coding assistant",
+  "version": "0.1.0",
+  "publisher": "mostwanted",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Debuggers",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:io.start",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "io.start",
+        "title": "IO: Start Session",
+        "icon": "$(play)"
+      },
+      {
+        "command": "io.stop",
+        "title": "IO: Stop Session",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "io.explain",
+        "title": "IO: Explain Selection",
+        "icon": "$(question)"
+      },
+      {
+        "command": "io.fix",
+        "title": "IO: Fix Selection",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "io.chat",
+        "title": "IO: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "io.syncSelection",
+        "title": "IO: Sync Selection to IO",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "io.showDiff",
+        "title": "IO: Show Changes",
+        "icon": "$(diff)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "io.explain",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "io.fix",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "io.chat",
+        "key": "ctrl+shift+o",
+        "mac": "cmd+shift+o"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "io.explain",
+          "when": "editorHasSelection",
+          "group": "9_io@1"
+        },
+        {
+          "command": "io.fix",
+          "when": "editorHasSelection",
+          "group": "9_io@2"
+        },
+        {
+          "command": "io.syncSelection",
+          "when": "editorHasSelection",
+          "group": "9_io@3"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "io.start",
+          "when": "view == io.chatView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "io.chatView",
+          "name": "IO Chat",
+          "when": "io.connected"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "IO",
+      "properties": {
+        "io.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8642",
+          "description": "IO server URL"
+        },
+        "io.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically sync selection to IO"
+        },
+        "io.showInlineDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show IO suggestions inline"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  }
+}

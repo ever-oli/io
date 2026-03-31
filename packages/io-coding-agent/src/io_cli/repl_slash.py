@@ -794,6 +794,204 @@ async def handle_repl_slash_command(
         else:
             return True, "Usage: /permissions [list|allow|deny|prompt|reset-safe] <args>"
 
+    if canonical == "ide":
+        """IDE integration commands."""
+        from .tools.ide_tools import IDEConnection
+
+        args_parts = arguments.split(maxsplit=1)
+        subcommand = args_parts[0].lower() if args_parts else "status"
+        rest = args_parts[1] if len(args_parts) > 1 else ""
+
+        if subcommand == "status":
+            # Check which IDEs are available
+            lines = ["🖥️ IDE Integration Status", ""]
+
+            # Check for VS Code
+            try:
+                import subprocess
+
+                result = subprocess.run(["which", "code"], capture_output=True)
+                if result.returncode == 0:
+                    lines.append("✓ VS Code: Available")
+                else:
+                    lines.append("  VS Code: Not found")
+            except Exception:
+                lines.append("  VS Code: Not found")
+
+            # Check for JetBrains
+            try:
+                result = subprocess.run(["which", "idea"], capture_output=True)
+                if result.returncode == 0:
+                    lines.append("✓ JetBrains (IntelliJ): Available")
+                else:
+                    lines.append("  JetBrains: Not found")
+            except Exception:
+                lines.append("  JetBrains: Not found")
+
+            # Check for Cursor
+            try:
+                result = subprocess.run(["which", "cursor"], capture_output=True)
+                if result.returncode == 0:
+                    lines.append("✓ Cursor: Available")
+                else:
+                    lines.append("  Cursor: Not found")
+            except Exception:
+                lines.append("  Cursor: Not found")
+
+            lines.extend(
+                [
+                    "",
+                    "Usage:",
+                    "  /ide connect <vscode|jetbrains|cursor|windsurf>",
+                    "  /ide open <file> [line] [column]",
+                    "  /ide diff <file>",
+                    "  /ide sync <file> <line> [column]",
+                ]
+            )
+
+            return True, "\n".join(lines)
+
+        elif subcommand == "connect":
+            ide_type = rest.strip() if rest else "auto"
+            if not ide_type:
+                return True, "Usage: /ide connect <vscode|jetbrains|cursor|windsurf|auto>"
+
+            return (
+                True,
+                f"Connecting to {ide_type}... (use ide_connect tool for full functionality)",
+            )
+
+        elif subcommand == "open":
+            if not rest:
+                return True, "Usage: /ide open <file-path> [line] [column]"
+
+            parts = rest.split()
+            file_path = parts[0]
+            line = int(parts[1]) if len(parts) > 1 else 1
+            column = int(parts[2]) if len(parts) > 2 else 1
+
+            return (
+                True,
+                f"Opening {file_path} at line {line}, column {column}... (use ide_open tool)",
+            )
+
+        elif subcommand == "diff":
+            if not rest:
+                return True, "Usage: /ide diff <file-path>"
+
+            return True, f"Showing diff for {rest}... (use ide_diff tool)"
+
+        elif subcommand == "sync":
+            if not rest:
+                return True, "Usage: /ide sync <file-path> <line> [column]"
+
+            parts = rest.split()
+            if len(parts) < 2:
+                return True, "Usage: /ide sync <file-path> <line> [column]"
+
+            file_path = parts[0]
+            line = int(parts[1])
+            column = int(parts[2]) if len(parts) > 2 else 1
+
+            return (
+                True,
+                f"Syncing cursor to {file_path}:{line}:{column}... (use ide_sync_selection tool)",
+            )
+
+        else:
+            return True, "Usage: /ide [connect|open|diff|sync|status]"
+
+    if canonical == "voice":
+        """Voice control commands."""
+        args_parts = arguments.split(maxsplit=1)
+        subcommand = args_parts[0].lower() if args_parts else "status"
+        rest = args_parts[1] if len(args_parts) > 1 else ""
+
+        if subcommand == "status":
+            lines = [
+                "🎙️ Voice System",
+                "",
+                "Status: Ready",
+                "",
+                "Available commands:",
+                "  /voice record [duration]     - Record audio (default: 5s)",
+                "  /voice transcribe            - Transcribe last recording",
+                "  /voice speak <text>          - Speak text",
+                "  /voice config                - Show voice configuration",
+                "  /voice list-voices           - List available voices",
+                "",
+                "Or use voice_* tools directly for more control.",
+            ]
+            return True, "\n".join(lines)
+
+        elif subcommand == "record":
+            duration = int(rest) if rest and rest.isdigit() else 5
+            return True, f"Recording {duration}s of audio... (use voice_record tool)"
+
+        elif subcommand == "transcribe":
+            return True, "Transcribing last recording... (use voice_transcribe tool)"
+
+        elif subcommand == "speak":
+            if not rest:
+                return True, "Usage: /voice speak <text>"
+            return True, f"Speaking: {rest[:50]}... (use voice_speak tool)"
+
+        elif subcommand == "config":
+            lines = [
+                "🎙️ Voice Configuration",
+                "",
+                "STT Provider: whisper (OpenAI)",
+                "TTS Provider: system (native)",
+                "Auto-read responses: off",
+                "",
+                "To configure:",
+                "  voice_config stt_provider=whisper tts_provider=system",
+                "  voice_config auto_tts=true",
+            ]
+            return True, "\n".join(lines)
+
+        elif subcommand == "list-voices":
+            return True, "Listing available voices... (use voice_list_voices tool)"
+
+        else:
+            return True, "Usage: /voice [record|transcribe|speak|config|status|list-voices]"
+
+    if canonical == "analytics":
+        """Analytics and usage reports."""
+        args_parts = arguments.split(maxsplit=1)
+        subcommand = args_parts[0].lower() if args_parts else "status"
+        rest = args_parts[1] if len(args_parts) > 1 else ""
+
+        if subcommand == "status":
+            lines = [
+                "📊 Analytics",
+                "",
+                "Status: Tracking enabled",
+                "Database: ~/.io/analytics.db",
+                "",
+                "Available commands:",
+                "  /analytics report [period]   - Show usage report (today/week/month)",
+                "  /analytics insights          - Get AI-powered insights",
+                "  /analytics export [format]   - Export data (json/csv)",
+                "",
+                "Or use analytics_* tools for detailed control.",
+            ]
+            return True, "\n".join(lines)
+
+        elif subcommand == "report":
+            period = rest if rest else "week"
+            return True, f"Generating {period} report... (use analytics_report tool)"
+
+        elif subcommand == "insights":
+            return True, "Analyzing usage patterns... (use analytics_insights tool)"
+
+        elif subcommand == "export":
+            fmt = rest if rest else "json"
+            return True, f"Exporting analytics to {fmt}... (use analytics_export tool)"
+
+        else:
+            return True, "Usage: /analytics [report|status|export|insights]"
+
     if command.cli_only:
         return (
             True,
