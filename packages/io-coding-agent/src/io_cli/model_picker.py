@@ -79,6 +79,7 @@ def run_model_picker_dialog(
     session = PromptSession(
         completer=_AuthModelCompleter(refs),
         complete_while_typing=True,
+        complete_style="column",  # Force single-column style to avoid duplicates
     )
     try:
         line = session.prompt(
