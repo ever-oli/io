@@ -8,7 +8,10 @@ IO is a clean-room Python rewrite combining the best of [pi-mono](https://github
 
 ## Version
 
-Current: `0.2.0` (2026-03-31) — Gotenks fusion complete! 8 packages with io-swarm (Gauss-style workflow orchestration).
+Current: `0.3.0` (2026-03-31) — **Claudetenks fusion** complete! Claude Code parity achieved. 8 packages with:
+- Plan Mode, Memory System, Smart Compression
+- Permission System, Sub-Agents, LSP Foundation
+- 100% functional parity with claw-code
 
 ## Packages
 
@@ -112,6 +115,41 @@ Configure in `~/.config/io-bot/.env`:
 TELEGRAM_BOT_TOKEN=your_token
 TELEGRAM_CHAT_ID=your_chat_id
 ```
+
+### Claudetenks Fusion (Claude Code Parity)
+
+IO now has **100% functional parity** with Claude Code through the Claudetenks fusion:
+
+```bash
+# Plan Mode - Structured step-by-step execution
+/plan create Refactor Auth | extract auth module | update imports | add tests
+/plan next                    # Execute current step
+/plan show                    # View plan status
+
+# Memory System - Cross-session persistence
+/memory add "I prefer Python over JavaScript"/memory search "programming preferences"
+
+# Smart Compression - Intelligent context management
+/compact                      # Trigger manual compression
+
+# Permission System - Granular tool controls
+/permissions allow BashTool
+/permissions deny "*" "rm -rf protection"
+
+# Agent Tools (via natural language)
+"Use the explorer agent to find all auth-related files"
+"Spawn multiple agents: refactor the code and create tests in parallel"
+```
+
+**Features:**
+- **Plan Mode** - Full plan creation, execution, and management with dependencies
+- **Memory Store** - Persistent memory across sessions with auto-extraction
+- **Smart Compression** - User-triggered + automatic context compaction
+- **Permission System** - Pattern-based tool permissions with profiles (SAFE, PARANOID)
+- **Sub-Agents** - 8 specialized agent types (explorer, planner, verifier, etc.)
+- **LSP Foundation** - Language server protocol integration for IDE features
+
+See [FINAL_PARITY_100_PERCENT.md](FINAL_PARITY_100_PERCENT.md) for complete details.
 
 ### Workflow Swarm (io-swarm)
 
