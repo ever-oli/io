@@ -17,7 +17,7 @@ from typing import Any
 
 from io_agent import Tool, ToolContext, ToolResult
 
-from .plan_manager import PlanManager, PlanStepStatus
+from io_cli.plan_manager import PlanManager, PlanStepStatus
 
 
 class PlanCreateTool(Tool):
