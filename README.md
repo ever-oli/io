@@ -4,9 +4,9 @@
 
 # IO
 
-IO is a clean-room Python rewrite combining the best of [pi-mono](https://github.com/badlogic/pi-mono), Hermes, and Claude Code, organized as an 8-package monorepo for AI agents and coding assistants.
+IO is a clean-room Python rewrite combining the best of [pi-mono](https://github.com/badlogic/pi-mono) and Hermes, organized as an 8-package monorepo for AI agents and coding assistants.
 
-**Version:** `0.3.0` — Production-ready with Claude Code parity
+**Version:** `0.3.0` — Production-ready
 
 ## Packages
 
@@ -182,7 +182,6 @@ uv tool install .
 ## Documentation
 
 - [`docs/`](docs/) — Architecture and features
-- [`docs/claudetenks/`](docs/claudetenks/) — Claude Code parity details
 - [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md) — Memory systems
 
 ## License
