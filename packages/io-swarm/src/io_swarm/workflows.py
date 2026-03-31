@@ -127,6 +127,117 @@ def spawn_golf(
     )
 
 
+def spawn_autoprove(
+    theorem: str,
+    project_dir: Path,
+    backend: str = "aristotle",
+    config: Optional[Dict[str, Any]] = None,
+    max_iterations: int = 100,
+    interactive: bool = False,
+) -> SwarmTask:
+    """Spawn an autonomous proof agent.
+
+    Unlike spawn_prove which is interactive, autoprove runs
+    autonomously with iteration limits and self-correction.
+    """
+    manager = SwarmManager()
+
+    argv = _build_argv("autoprove", backend, config)
+    argv.extend(["--max-iterations", str(max_iterations), theorem])
+
+    description = f"Autoprove: {theorem[:50]}..." if len(theorem) > 50 else f"Autoprove: {theorem}"
+
+    return manager.spawn(
+        command=argv,
+        description=description,
+        project_dir=project_dir,
+        interactive=interactive,
+    )
+
+
+def spawn_autoformalize(
+    statement: str,
+    project_dir: Path,
+    backend: str = "aristotle",
+    config: Optional[Dict[str, Any]] = None,
+    max_iterations: int = 50,
+    interactive: bool = False,
+) -> SwarmTask:
+    """Spawn an autonomous formalization agent.
+
+    Runs autonomously to convert natural math to Lean code.
+    """
+    manager = SwarmManager()
+
+    argv = _build_argv("autoformalize", backend, config)
+    argv.extend(["--max-iterations", str(max_iterations), statement])
+
+    description = (
+        f"Autoformalize: {statement[:50]}..."
+        if len(statement) > 50
+        else f"Autoformalize: {statement}"
+    )
+
+    return manager.spawn(
+        command=argv,
+        description=description,
+        project_dir=project_dir,
+        interactive=interactive,
+    )
+
+
+def spawn_checkpoint(
+    project_dir: Path,
+    name: Optional[str] = None,
+    backend: str = "aristotle",
+    config: Optional[Dict[str, Any]] = None,
+) -> SwarmTask:
+    """Spawn a checkpoint agent to save project state.
+
+    Creates a snapshot of the current proof state.
+    """
+    manager = SwarmManager()
+
+    argv = _build_argv("checkpoint", backend, config)
+    if name:
+        argv.extend(["--name", name])
+
+    description = f"Checkpoint: {name or 'auto'}"
+
+    return manager.spawn(
+        command=argv,
+        description=description,
+        project_dir=project_dir,
+        interactive=False,
+    )
+
+
+def spawn_refactor(
+    target: str,
+    project_dir: Path,
+    backend: str = "aristotle",
+    config: Optional[Dict[str, Any]] = None,
+    interactive: bool = False,
+) -> SwarmTask:
+    """Spawn a refactoring agent.
+
+    Refactors proofs for clarity, efficiency, or style.
+    """
+    manager = SwarmManager()
+
+    argv = _build_argv("refactor", backend, config)
+    argv.append(target)
+
+    description = f"Refactor: {target[:50]}..." if len(target) > 50 else f"Refactor: {target}"
+
+    return manager.spawn(
+        command=argv,
+        description=description,
+        project_dir=project_dir,
+        interactive=interactive,
+    )
+
+
 def _build_argv(
     verb: str,
     backend: str,
