@@ -4,198 +4,237 @@
 
 # IO
 
-IO is a clean-room Python rewrite of the pi-mono repo and hermes , organized around
-the core package boundaries lifted from pi-mono. I couldn't decide on one so why not both. 
+IO is a clean-room Python rewrite combining the best of [pi-mono](https://github.com/badlogic/pi-mono) and Hermes, organized as a 7-package monorepo for AI agents and coding assistants.
 
 ## Version
 
-Current milestone: `0.1.2` (2026-03-19) — Nuggets-style HRR memory parity, gateway surfaces, CLI hardening.
+Current: `0.1.2` (2026-03-31) — Complete 7-package structure with Telegram bot, gateway surfaces, and Hermes-style parity.
 
 ## Packages
 
-- `io-ai`: provider runtime, model registry, auth, and cost tracking
-- `io-agent-core`: agent loop, tools, events, and session index
-- `io-tui`: generic prompt_toolkit and Rich terminal components
-- `io-coding-agent`: CLI, session manager, extensions, and built-in tools
-- `io-web-ui`: FastAPI web runtime and browser chat surface
-- `io-pods`: persisted local pod lifecycle and vLLM management
+| Package | Purpose |
+|---------|---------|
+| `io-ai` | Multi-provider LLM runtime, model registry, auth, cost tracking |
+| `io-agent-core` | Agent loop, tools, events, session management |
+| `io-coding-agent` | CLI, REPL, session manager, built-in tools |
+| `io-tui` | Terminal UI components (prompt_toolkit, Rich) |
+| `io-web-ui` | FastAPI web runtime and browser chat |
+| `io-pods` | Local pod lifecycle and vLLM management |
+| `io-bot` | **NEW** — Telegram bot, morning briefings, notifications |
 
-### Hermes-style TUI parity (CLI)
-
-| Feature | Status |
-|--------|--------|
-| Multiline REPL | `display.repl_multiline_mode`: **`single_ctrl_j`** (default) = Enter submits, **Ctrl-J** newline; **`meta_submit`** = full PT multiline (Enter newline, Esc/Meta+Enter submit); **`buffer`** = lines until sentinel (`repl_buffer_sentinel`, default `END`) |
-| Token streaming | `display.streaming` + `io_ai.stream` deltas → REPL (`message_delta` events) |
-| Tool stdout/stderr streaming | `display.stream_tool_output` (default on) → `tool_output_delta` for `terminal` / `bash` |
-| SIGINT → interrupt | Sets `Agent.interrupt_requested`; follow-up prompt for redirect text |
-| Honcho tools | **Honcho API v3** by default (`workspace_id`, `session_id`, peer defaults). Set `honcho.api_version: legacy` + `paths` for old `/api/*` servers. See [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md) |
-| Delegation / code tools | `delegate_task`, `execute_code` registered (`delegation` / `code_execution` toolsets; included in `io-cli`) |
-| Cron scheduler truth | `cron.status().scheduler_available` reflects gateway runtime (`io gateway run`) |
-| Research workflow | `io research list`, `io research export`, `io research summary --path ...` |
-
-**Memory stack:** the original IO layer (`memory_snapshot` + `~/.io/memories/*.md`, `memory` tool, FTS + `session_search`, nuggets) stays the default and is **not** replaced by Honcho. Honcho is optional on top — see [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md).
-
-### Holographic memory (Nuggets-style)
-
-The `nuggets` tool provides **Holographic Reduced Representation (HRR)** memory
-inspired by [Nuggets](https://github.com/NeoVertex1/nuggets) (MIT): facts live
-under `~/.io/nuggets/` (per IO home) as small JSON files; recall is local
-algebra on fixed-size vectors. Facts recalled often are merged into
-`memories/MEMORY.md` (threshold 3) when `nuggets.auto_promote` is true in config.
-The default vector dimension is large (`D=16384`); Python rebuild cost is higher
-than the upstream TypeScript engine—use smaller `D` only for tests or light use.
-Behavioral parity targets (PRNG goldens, Nuggets-style fuzzy keys, promotion header)
-are documented in [`docs/nuggets_parity.md`](docs/nuggets_parity.md) with tests in
-`tests/test_nuggets_parity.py`.
-
-**OpenGauss / Hermes-style security:** optional [Tirith](https://github.com/sheeki03/tirith) command scanning for `bash` / `terminal`, plus `io security tirith-install` (cargo → `~/.io/bin`); see [`docs/open_gauss_hermes_port.md`](docs/open_gauss_hermes_port.md).
-
-**Lean / Aristotle:** `io lean submit|prove|…` (`lean.*_argv`), optional **`lean.backends`** and **`--backend`**, `/lean prove @name …`, **`io lean backends list`**. **OpenGauss:** `io gauss …` / `/gauss …` (real CLI). **`/gateway start`** spawns `io gateway run` in the background. See [`docs/gauss_new_user.md`](docs/gauss_new_user.md), [`docs/open_gauss_hermes_port.md`](docs/open_gauss_hermes_port.md), skill `mathematics/aristotle-formal-proof`.
-
-## Personal SOUL (repo-local, not committed)
-
-The agent’s **system persona** is loaded like this:
-
-1. **Workspace file** — From the session **working directory**, IO walks **up** the directory tree and uses the first **`soul.md`** or **`SOUL.md`** it finds (usually the repo root). That’s where you put a SillyTavern / character-card–style identity without committing it.
-2. **Fallback** — If no such file exists, IO uses **`~/.io/SOUL.md`** (created on first bootstrap).
-
-Repo root **`soul.md` / `SOUL.md`** are listed in **`.gitignore`**, so they stay on your machine only. A committed starter is **`soul.example.md`** — copy it to `soul.md` and edit freely.
-
-**Verify IO is using it:** run `io doctor` from the same directory you use for `io chat` (or pass `--cwd`). Check **`soul_path`** and **`soul_source`** (`workspace` = your repo `soul.md`, `io_home` = `~/.io/SOUL.md`). If `soul_source` is `io_home`, your shell’s current directory wasn’t under the repo when the agent started—use `io chat --cwd /path/to/this/repo`.
-
-**Cursor / IDE chat** is separate: it does **not** load IO’s `soul.md`. Only **`io chat`**, **`io ask`**, gateway, web UI, etc. use `load_soul`.
-
-**Telegram / gateway:** the gateway’s working directory defaults to **`$HOME`** (when `terminal.cwd` is `.`), so walking upward from cwd usually **never** reaches your git repo. Set **`soul.workspace_root`** in `~/.io/config.yaml` to the directory that contains your `soul.md`, e.g.:
-
-```yaml
-soul:
-  workspace_root: "/Users/you/Documents/GitHub/io"
-```
-
-Then `io doctor` should show **`soul_source`: `workspace_root`**.
-
-**Prove the right file is loaded:** `io soul status` (add `--cwd ~` to mimic gateway). Check **`soul_path`**, **`soul_source`**, and **`preview`** (first lines of the file). If **`preview`** doesn’t show your persona header, the bot isn’t reading that file yet.
-
-## Repo Layout
-
-- `packages/`: runtime packages
-- `skills/` and `optional-skills/`: bundled skill content
-- `docs/`: operator and developer docs
-- `scripts/`: repo automation
-- `environments/`: tool/runtime environment definitions
-
-## Development
+## Quick Start
 
 ```bash
+# Install dependencies
 uv sync
+
+# Run the CLI
 uv run io --help
+uv run io chat
+
+# Run tests
 uv run pytest
 ```
 
-**`/model` in the REPL:** With no arguments, IO opens **one prompt** with **fuzzy Tab completion** (same dropdown style as slash commands) over models from **configured providers**. You can still **`/model anthropic:claude-…`** in one line. New installs default to a **free** OpenRouter model (`openrouter/nvidia/nemotron-3-super-120b-a12b:free`); override in `~/.io/config.yaml`. CLI: `io models` / `io models --search …` / `io models --all`.
+## Features
 
-**`/provider` in the REPL:** Same pattern — bare **`/provider`** opens a **fuzzy picker** for **auto** + known providers (from `io auth`); you can also type **`/provider openrouter`** (with **Tab** / ghost text on the slash line like `/model`).
+### Hermes-style TUI Parity
 
-**GitHub Copilot (Hermes-style OAuth):** Run **`io auth copilot-login`** — GitHub **device code** flow (same OAuth client as Copilot CLI / Hermes); the token is saved to **`~/.io/auth.json`** under **`copilot.api_key`**. Alternatively set **`COPILOT_GITHUB_TOKEN`**, **`GH_TOKEN`**, or **`GITHUB_TOKEN`** in **`~/.io/.env`** (OAuth `gho_*`, fine-grained `github_pat_*`, or `ghu_*`; classic `ghp_*` PATs are **not** accepted for the Copilot API). Use **`io auth status`** to confirm **`copilot.logged_in`**.
+| Feature | Status |
+|---------|--------|
+| Multiline REPL | `display.repl_multiline_mode`: `single_ctrl_j` (default), `meta_submit`, or `buffer` |
+| Token streaming | `display.streaming` + `io_ai.stream` → REPL |
+| Tool output streaming | `display.stream_tool_output` for `terminal` / `bash` |
+| SIGINT handling | Sets `Agent.interrupt_requested` |
+| Honcho memory | Honcho API v3 by default (opt-in) |
+| Delegation tools | `delegate_task`, `execute_code` |
+| Research workflow | `io research list`, `io research export`, `io research summary` |
 
-**MCP auth status/login:** Use **`io auth mcp-login <server> <token>`**, **`io auth mcp-status`**, and **`io auth mcp-logout <server>`** to manage MCP server tokens in `~/.io/mcp_auth.json`.
+### Gateway Platforms
 
-**Semantic + repo-map context (feature flags):** set `semantic.enabled: true` and/or `semantic.repo_map: true` in `~/.io/config.yaml` (or env flags `IO_SEMANTIC_CONTEXT=1`, `IO_REPO_MAP_CONTEXT=1`) to inject lightweight semantic hits and repo-map context into prompt system context.
+Multi-platform bot adapter stack:
 
-### Typing `io` in any terminal
-
-**This repo’s CLI** is the Python console script **`io`** → `io_cli.cli:main`. Until that executable is on your **PATH**, only `uv run io` from the clone works.
-
-Pick one way to put **`io`** on PATH:
-
-1. **Alias (always uses this repo’s lockfile)** — in `~/.zshrc`:
-
-   ```bash
-   alias io='uv run --directory /ABS/PATH/TO/THIS/REPO io'
-   ```
-
-   Then `source ~/.zshrc`.
-
-2. **Prepend the repo venv** — after `uv sync`:
-
-   ```bash
-   export PATH="/ABS/PATH/TO/THIS/REPO/.venv/bin:$PATH"
-   ```
-
-3. **Global uv tool** (common):
-
-   ```bash
-   cd /ABS/PATH/TO/THIS/REPO
-   uv tool install .
-   ```
-
-   Then ensure **`~/.local/bin`** is on PATH (uv’s default tool bin dir).
-
-#### IO vs Mario’s `pi` (no more tangles)
-
-| What | Kind | Command name | How you run it |
-|------|------|----------------|----------------|
-| **This project** | Python (uv) | **`io`** | `uv run io` or `uv tool install .` then **`io`** |
-| **`@mariozechner/pi-coding-agent`** (npm) | Node | **`pi`** only | `npm view @mariozechner/pi-coding-agent bin` → `{ "pi": "dist/cli.js" }` — upstream registers **`pi`**, not `io` |
-
-**The real fix** so typing **`io`** runs **this** repo: your shell must find **this** `io` **first**. Put **`~/.local/bin`** (or `.venv/bin`) **before** `/opt/homebrew/bin` (and any npm global dir) in `PATH`, e.g.:
+`telegram` `discord` `whatsapp` `slack` `signal` `mattermost` `matrix` `email` `sms` `api-server` `webhook`
 
 ```bash
-export PATH="${HOME}/.local/bin:${PATH}"
-```
+# Check gateway status
+io gateway status
 
-Then check: **`command -v io`** should show **`…/.local/bin/io`** (or your venv), not Homebrew.
-
-**If you still have a stray `io` → pi:** Some machines have an old **`io`** symlink next to Homebrew’s Node tree pointing at `pi-coding-agent`’s `cli.js`. That is **not** this Python IO. You can delete that symlink or `npm uninstall -g @mariozechner/pi-coding-agent` **if** you don’t use Mario’s agent. That uninstall **does not** remove **this** IO. If you use his agent again, reinstall the npm package and run **`pi`** (the supported name), and keep **`~/.local/bin` before Homebrew** so your **`io`** still resolves to Python IO.
-
-**Terminal tab (pi-style):** When the **interactive** REPL starts, IO prints an **OSC 0** title sequence (same mechanism as pi’s `setTitle`) so many terminals show **`φ io — ~/your/project`**. If the tab still says **`uv`** until IO boots, that’s the parent process name — put **`.venv/bin/io`** on PATH (option 2) so the shell spawns **`io`** directly. Set **`IO_TERMINAL_TITLE=0`** to disable title changes.
-
-If `which io` shows nothing or the wrong binary, fix PATH/alias first. If `io` fails with `ModuleNotFoundError: No module named 'numpy'`, reinstall from this repo (`uv sync`) or `pip install numpy` into the **same environment** as the `io` executable (e.g. refresh a `pipx`/`pip --user` install). Holographic nuggets need NumPy when that tool is enabled.
-
-## Gateway Parity Surfaces
-
-IO now ships the multi-platform gateway adapter stack, including:
-
-- `telegram`
-- `discord`
-- `whatsapp`
-- `slack`
-- `signal`
-- `mattermost`
-- `matrix`
-- `homeassistant`
-- `email`
-- `sms`
-- `dingtalk`
-- `api-server`
-- `webhook`
-
-Check runtime status:
-
-```bash
-uv run io gateway status
+# Start gateway
+io gateway run --platform telegram
 ```
 
 ### API Server (OpenAI-compatible)
 
-Enable and start the gateway with `api-server` to expose:
+```bash
+io gateway run --platform api-server
+```
 
+Exposes:
 - `POST /v1/chat/completions`
 - `POST /v1/responses`
 - `GET /v1/models`
 - `GET /health`
 
-Default bind is `127.0.0.1:8642` (configurable via gateway platform extra config).
+Default: `127.0.0.1:8642`
 
-### Webhook Adapter
+### Morning Briefing (io-bot)
 
-`webhook` provides an authenticated webhook ingress with:
+```bash
+# Daily research briefings via Telegram
+io briefing
 
-- route-based event filtering
-- HMAC signature validation
-- idempotency for delivery retries
-- rate limiting and payload size guardrails
+# Custom topics
+io briefing "AI news" "tech startups" "productivity"
+```
 
-Route handlers can template payload data into prompts and deliver agent output
-to logs, GitHub PR comments (`gh pr comment`), or relay to connected messaging
-platforms.
+Configure in `~/.config/io-bot/.env`:
+```
+TELEGRAM_BOT_TOKEN=your_token
+TELEGRAM_CHAT_ID=your_chat_id
+```
+
+### Personal SOUL
+
+The agent's persona loads from (in order):
+
+1. **Workspace** — First `soul.md` / `SOUL.md` found walking up from working directory
+2. **Fallback** — `~/.io/SOUL.md`
+
+Repo `soul.md` is `.gitignore`d. Copy `soul.example.md` to get started.
+
+**Verify:** `io doctor` shows `soul_path` and `soul_source`
+
+**For Telegram:** Set `soul.workspace_root` in `~/.io/config.yaml`:
+```yaml
+soul:
+  workspace_root: "/Users/you/Documents/GitHub/io"
+```
+
+## Configuration
+
+### Models & Providers
+
+```bash
+# Interactive model picker
+/model
+
+# Direct selection
+/model anthropic:claude-3-5-sonnet-20241022
+
+# Interactive provider picker
+/provider
+
+# List all models
+io models
+io models --search claude
+```
+
+Default: OpenRouter free tier (`openrouter/nvidia/nemotron-3-super-120b-a12b:free`)
+
+### Authentication
+
+**GitHub Copilot:**
+```bash
+io auth copilot-login      # Device code OAuth flow
+io auth status             # Check copilot.logged_in
+```
+
+**MCP Servers:**
+```bash
+io auth mcp-login <server> <token>
+io auth mcp-status
+io auth mcp-logout <server>
+```
+
+Tokens saved to `~/.io/auth.json` and `~/.io/mcp_auth.json`.
+
+### Feature Flags
+
+In `~/.io/config.yaml`:
+```yaml
+semantic:
+  enabled: true        # Semantic context injection
+  repo_map: true       # Repository map context
+
+nuggets:
+  auto_promote: true   # Auto-promote nuggets to memories
+```
+
+Or via env: `IO_SEMANTIC_CONTEXT=1`, `IO_REPO_MAP_CONTEXT=1`
+
+## Memory Stack
+
+- **Nuggets** — Holographic Reduced Representation (HRR) memory in `~/.io/nuggets/`
+- **Memories** — Traditional memory snapshots in `~/.io/memories/*.md`
+- **Honcho** — Optional external memory (API v3)
+
+Nuggets use fixed-size vectors (default `D=16384`). Frequently-recalled facts auto-promote to `memories/MEMORY.md` when `nuggets.auto_promote: true`.
+
+See [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md)
+
+## Security
+
+- **Tirith scanning** — Optional command validation for `bash`/`terminal`
+- **OpenGauss** — Security analysis tools
+- **Approval queue** — Tool execution approval workflows
+
+```bash
+io security tirith-install    # Install Tirith to ~/.io/bin
+io gauss ...                  # Security analysis
+```
+
+## Development
+
+### Project Structure
+
+```
+packages/          # Runtime packages (7 total)
+skills/            # Bundled skills
+optional-skills/   # Optional skill content
+docs/              # Documentation
+environments/      # Tool/runtime environments
+tests/             # Test suite
+scripts/           # Repo automation
+```
+
+### Running IO Anywhere
+
+**Option 1: Alias (recommended)**
+```bash
+# ~/.zshrc
+alias io='uv run --directory /path/to/this/repo io'
+```
+
+**Option 2: Global install**
+```bash
+uv tool install .
+# Ensure ~/.local/bin is on PATH
+```
+
+**Verify:**
+```bash
+command -v io    # Should show path to this repo's io
+io --version
+```
+
+### IO vs Mario's `pi`
+
+| Project | Type | Command |
+|---------|------|---------|
+| **This repo** | Python (uv) | `io` |
+| `@mariozechner/pi-coding-agent` | Node/npm | `pi` |
+
+If you have conflicts, ensure `~/.local/bin` (or your venv) comes before npm/Hombrew in PATH.
+
+## Documentation
+
+- [`docs/memory-nuggets-and-honcho.md`](docs/memory-nuggets-and-honcho.md) — Memory systems
+- [`docs/nuggets_parity.md`](docs/nuggets_parity.md) — Nuggets HRR parity
+- [`docs/open_gauss_hermes_port.md`](docs/open_gauss_hermes_port.md) — Security & OpenGauss
+- [`docs/gauss_new_user.md`](docs/gauss_new_user.md) — Getting started with Gauss
+- [`docs/docker.md`](docs/docker.md) — Docker deployment
+
+## License
+
+See repository for license details.
