@@ -2,10 +2,25 @@
 
 __version__ = "0.2.0"
 
+from .atropos import (
+    AtroposConfig,
+    AtroposTrainer,
+    LeanRewardModel,
+    RewardModel,
+    TrainingTrajectory,
+    create_atropos_trainer,
+)
 from .manager import SwarmManager, SwarmTask, TaskStatus
 from .mini_swe import BenchmarkResult, MiniSWEAgent, run_swe_bench_suite
 from .projects import LeanProject, ProjectRegistry
 from .signing import CosignSigner, SigningResult
+from .tinker import (
+    Episode,
+    PolicyOptimizer,
+    TinkerConfig,
+    TinkerTrainer,
+    create_tinker_trainer,
+)
 from .trajectory import CompressionConfig, TrajectoryCompressor, TrajectoryMetrics
 from .tui import (
     print_swarm_status,
@@ -31,6 +46,19 @@ __all__ = [
     "SwarmManager",
     "SwarmTask",
     "TaskStatus",
+    # Atropos (Training)
+    "AtroposConfig",
+    "AtroposTrainer",
+    "LeanRewardModel",
+    "RewardModel",
+    "TrainingTrajectory",
+    "create_atropos_trainer",
+    # Tinker (Training)
+    "TinkerConfig",
+    "TinkerTrainer",
+    "Episode",
+    "PolicyOptimizer",
+    "create_tinker_trainer",
     # Projects
     "LeanProject",
     "ProjectRegistry",

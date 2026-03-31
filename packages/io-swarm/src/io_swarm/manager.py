@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,10 @@ class SwarmTask:
     exit_code: Optional[int] = field(default=None)
     error_message: Optional[str] = field(default=None)
     progress: str = field(default="Starting...")
+
+    # Training/RL fields
+    session_id: Optional[str] = field(default=None)
+    metrics: Dict[str, Any] = field(default_factory=dict, repr=False)
 
 
 class SwarmManager:
@@ -118,8 +123,10 @@ class SwarmManager:
         with self._task_lock:
             self._counter += 1
             task_id = f"io-{self._counter:03d}"
+            session_id = f"io_{uuid.uuid4().hex[:8]}"
             task = SwarmTask(
                 task_id=task_id,
+                session_id=session_id,
                 description=description,
                 command=" ".join(command),
                 project_dir=project_dir,
