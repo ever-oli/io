@@ -30,6 +30,33 @@ class _AuthModelCompleter(Completer):
     def __init__(self, refs: list[ModelRef]) -> None:
         self._refs = refs
 
+    @staticmethod
+    def _hint_text(model: ModelRef) -> str:
+        hint = str((model.metadata or {}).get("hint") or "").strip()
+        if not hint:
+            return ""
+        lowered = hint.lower()
+        if lowered == "recommended":
+            return "Recommended"
+        if lowered == "free":
+            return "Free"
+        return hint.replace("-", " ").strip().title()
+
+    @classmethod
+    def _display_text(cls, model: ModelRef) -> str:
+        full_display = f"{model.provider}/{model.remote_id}"
+        hint = cls._hint_text(model)
+        if not hint:
+            return full_display if len(full_display) <= 64 else full_display[:61] + "…"
+
+        decorated = f"{full_display} · {hint}"
+        if len(decorated) <= 64:
+            return decorated
+
+        reserved = len(hint) + 4  # "… · " + hint
+        head = max(1, 64 - reserved)
+        return f"{full_display[:head]}… · {hint}"
+
     def get_completions(self, document: Any, complete_event: Any) -> Any:
         text = document.text_before_cursor
         raw = text.strip()
@@ -42,14 +69,11 @@ class _AuthModelCompleter(Completer):
                 lambda r: f"{r.provider} {r.remote_id} {r.id} {r.label}",
             )
         for m in candidates[:80]:
-            disp = f"{m.provider}/{m.remote_id}"
-            if len(disp) > 64:
-                disp = disp[:61] + "…"
+            disp = self._display_text(m)
             yield Completion(
                 m.id,
                 start_position=-len(text),
                 display=disp,
-                display_meta=m.id,
             )
 
 
@@ -79,7 +103,7 @@ def run_model_picker_dialog(
     session = PromptSession(
         completer=_AuthModelCompleter(refs),
         complete_while_typing=True,
-        complete_style="column",  # Force single-column style to avoid duplicates
+        complete_style="column",
     )
     try:
         line = session.prompt(

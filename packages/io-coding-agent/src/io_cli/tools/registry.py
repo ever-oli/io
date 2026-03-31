@@ -24,6 +24,11 @@ def _register_builtin_tool_modules() -> None:
         plan_tools,
         agent_tool,
         lsp_tool,
+        # Phase 1: Core tools expansion
+        ask_user_tool,
+        diff_tool,
+        rewind_tool,
+        skill_tool,
     )
 
     try:
@@ -98,6 +103,16 @@ TOOL_METADATA: dict[str, ToolMetadata] = {
     "multi_agent": ToolMetadata("multi_agent", "agent", "🤖"),
     "lsp": ToolMetadata("lsp", "lsp", "🔍"),
     "lsp_diagnostics": ToolMetadata("lsp_diagnostics", "lsp", "🔍"),
+    # Phase 1: Core tools expansion
+    "ask_user": ToolMetadata("ask_user", "interactive", "❓"),
+    "diff": ToolMetadata("diff", "file", "📊"),
+    "rewind": ToolMetadata("rewind", "file", "⏪"),
+    "skill": ToolMetadata("skill", "skills", "🛠️"),
+    # Phase 2: MCP integration
+    "mcp_connect": ToolMetadata("mcp_connect", "mcp", "🔗"),
+    "mcp_list": ToolMetadata("mcp_list", "mcp", "📋"),
+    "mcp_read": ToolMetadata("mcp_read", "mcp", "📖"),
+    "mcp_call": ToolMetadata("mcp_call", "mcp", "🔧"),
 }
 
 # Hermes-style helper aliases -> IO canonical tool names.
