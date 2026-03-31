@@ -50,19 +50,26 @@ uv run pytest
 | Delegation tools | `delegate_task`, `execute_code` |
 | Research workflow | `io research list`, `io research export`, `io research summary` |
 
-### Gateway Platforms
+### Telegram Bot (Primary)
 
-Multi-platform bot adapter stack:
-
-`telegram` `discord` `whatsapp` `slack` `signal` `mattermost` `matrix` `email` `sms` `api-server` `webhook`
+Fully working gateway for Telegram:
 
 ```bash
-# Check gateway status
-io gateway status
+# Setup
+io gateway setup telegram
 
-# Start gateway
+# Run bot
 io gateway run --platform telegram
+
+# Check status
+io gateway status
 ```
+
+Supports:
+- Direct messages and group chats
+- Webhook or long-polling mode
+- File attachments (photos, documents)
+- Slash commands (`/model`, `/provider`, `/memory`, etc.)
 
 ### API Server (OpenAI-compatible)
 
@@ -77,6 +84,10 @@ Exposes:
 - `GET /health`
 
 Default: `127.0.0.1:8642`
+
+### Additional Gateways (Experimental)
+
+Code exists for: Discord, WhatsApp, Slack, Signal, Matrix, Mattermost, Email, SMS, Webhook, Home Assistant, DingTalk. These are **not fully tested** — Telegram is the stable, production-ready option.
 
 ### Morning Briefing (io-bot)
 
@@ -217,15 +228,6 @@ uv tool install .
 command -v io    # Should show path to this repo's io
 io --version
 ```
-
-### IO vs Mario's `pi`
-
-| Project | Type | Command |
-|---------|------|---------|
-| **This repo** | Python (uv) | `io` |
-| `@mariozechner/pi-coding-agent` | Node/npm | `pi` |
-
-If you have conflicts, ensure `~/.local/bin` (or your venv) comes before npm/Hombrew in PATH.
 
 ## Documentation
 
