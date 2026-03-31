@@ -58,4 +58,5 @@ class AgentRunResult:
     usage: Usage = field(default_factory=Usage)
     iterations: int = 0
     interrupted: bool = False
-
+    runtime_target: dict[str, Any] = field(default_factory=dict)
+    runtime_attempts: list[dict[str, Any]] = field(default_factory=list)

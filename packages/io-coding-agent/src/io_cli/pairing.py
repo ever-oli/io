@@ -8,7 +8,7 @@ import secrets
 import time
 from pathlib import Path
 
-from .config import ensure_io_home
+from .config import atomic_write_text, ensure_io_home
 
 
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -22,7 +22,7 @@ MAX_FAILED_ATTEMPTS = 5
 
 def _secure_write(path: Path, data: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(data, encoding="utf-8")
+    atomic_write_text(path, data, chmod=0o600)
     try:
         os.chmod(path, 0o600)
     except OSError:
@@ -113,6 +113,16 @@ class PairingStore:
             return None
         self._approve_user(platform, user_id, user_name)
         return {"user_id": user_id, "user_name": user_name}
+
+    def deny_code(self, platform: str, code: str) -> bool:
+        self._cleanup_expired(platform)
+        pending = self._load_json(self._pending_path(platform))
+        normalized = code.upper().strip()
+        if normalized not in pending:
+            return False
+        pending.pop(normalized, None)
+        self._save_json(self._pending_path(platform), pending)
+        return True
 
     def list_pending(self, platform: str | None = None) -> list[dict]:
         results: list[dict] = []

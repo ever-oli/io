@@ -20,8 +20,10 @@ from .config import load_config, load_env, save_config
 from .models import apply_user_model_selection_to_config
 from .gateway import GatewayManager
 from .main import run_prompt
+from .model_router import model_router_status, recommend_model_route, set_model_router_auto
 from .session import SessionManager
 from .agent.skill_commands import build_skill_invocation_message
+from .skills_hub import SkillsHubError, format_skills_hub_output, run_skills_hub_command
 
 
 def parse_slash_command(text: str) -> tuple[str, str] | None:
@@ -242,6 +244,59 @@ async def handle_repl_slash_command(
         runtime = resolve_runtime(config=config, home=home, env=env)
         return True, f"Current model: {runtime.model}\nCurrent provider: {runtime.provider}"
 
+    if canonical == "model-router":
+        config = load_config(home)
+        command = arguments.strip()
+        lowered = command.lower()
+        if lowered in {"on", "off"}:
+            set_model_router_auto(config, lowered == "on")
+            save_config(config, home)
+            return True, f"Model router auto-routing {'enabled' if lowered == 'on' else 'disabled'}."
+        if lowered.startswith("auto "):
+            value = lowered.split(None, 1)[1].strip()
+            if value not in {"on", "off"}:
+                return True, "Usage: /model-router auto on|off"
+            set_model_router_auto(config, value == "on")
+            save_config(config, home)
+            return True, f"Model router auto-routing {'enabled' if value == 'on' else 'disabled'}."
+        if lowered.startswith("recommend "):
+            task = command.split(None, 1)[1].strip()
+            payload = recommend_model_route(task, config=config, home=home, env=env)
+            selected = payload["selected"]
+            lines = [
+                f"Selected route: {selected['provider']} / {selected['model']}",
+                f"Reason: {payload['simple_reason']}",
+                f"Simple prompt: {'yes' if payload['simple_prompt'] else 'no'}",
+            ]
+            fallbacks = payload.get("fallbacks") or []
+            if fallbacks:
+                lines.append(
+                    "Fallbacks: "
+                    + ", ".join(f"{item['provider']}/{item['model']}" for item in fallbacks if isinstance(item, dict))
+                )
+            return True, "\n".join(lines)
+        payload = model_router_status(config=config, home=home, env=env)
+        runtime_payload = payload.get("runtime") or {}
+        cheap_payload = payload.get("cheap_model") or {}
+        lines = [
+            f"Auto-routing: {'enabled' if payload.get('enabled') else 'disabled'}",
+            f"Current runtime: {runtime_payload.get('provider')} / {runtime_payload.get('model')}",
+        ]
+        if cheap_payload:
+            lines.append(f"Cheap model: {cheap_payload.get('provider')} / {cheap_payload.get('model')}")
+        fallbacks = payload.get("fallbacks") or []
+        lines.append(
+            "Fallbacks: "
+            + (
+                ", ".join(
+                    f"{item['provider']}/{item['model']}" for item in fallbacks if isinstance(item, dict)
+                )
+                if fallbacks
+                else "(none)"
+            )
+        )
+        return True, "\n".join(lines)
+
     if canonical == "reasoning":
         config = load_config(home)
         model_cfg = config.setdefault("model", {})
@@ -315,6 +370,15 @@ async def handle_repl_slash_command(
             backend=lean_backend,
         )
         return True, format_submit_result(result)
+
+    if canonical == "skills":
+        try:
+            payload = run_skills_hub_command(arguments, home=home, cwd=cwd)
+        except SkillsHubError as exc:
+            return True, str(exc)
+        if payload.get("message") and payload.get("success"):
+            return True, str(payload["message"])
+        return True, format_skills_hub_output(payload)
 
     if canonical == "personality":
         config = load_config(home)

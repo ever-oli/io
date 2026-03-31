@@ -13,9 +13,17 @@ import hashlib
 import logging
 import os
 import re
+from urllib.parse import urlparse
 from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
+
+try:
+    from aiohttp import web
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    web = Any
+    AIOHTTP_AVAILABLE = False
 
 try:
     from telegram import Update, Bot, Message
@@ -130,6 +138,10 @@ class TelegramAdapter(BasePlatformAdapter):
         self._token_lock_identity: Optional[str] = None
         self._polling_error_task: Optional[asyncio.Task] = None
         self._update_offset = int(config.extra.get("offset", 0) or 0)
+        self._webhook_runner = None
+        self._webhook_site = None
+        self._webhook_app = None
+        self._webhook_events: asyncio.Queue[MessageEvent] = asyncio.Queue()
         self._normalize_offset_for_token_change()
 
     @property
@@ -147,6 +159,36 @@ class TelegramAdapter(BasePlatformAdapter):
     @property
     def _api_base_url(self) -> str:
         return f"https://api.telegram.org/bot{self.token}" if self.token else ""
+
+    @property
+    def webhook_url(self) -> str:
+        return str(self.config.extra.get("webhook_url", "") or "").strip()
+
+    @property
+    def webhook_port(self) -> int:
+        raw = self.config.extra.get("webhook_port", 8081)
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return 8081
+
+    @property
+    def webhook_host(self) -> str:
+        return str(self.config.extra.get("webhook_host", "") or "").strip() or "0.0.0.0"
+
+    @property
+    def webhook_secret(self) -> str:
+        return str(self.config.extra.get("webhook_secret", "") or "").strip()
+
+    @property
+    def webhook_enabled(self) -> bool:
+        return bool(self.webhook_url)
+
+    @property
+    def webhook_path(self) -> str:
+        parsed = urlparse(self.webhook_url)
+        path = parsed.path or "/telegram/webhook"
+        return path if path.startswith("/") else f"/{path}"
 
     def _token_fingerprint(self) -> str:
         token = self.token
@@ -323,6 +365,8 @@ class TelegramAdapter(BasePlatformAdapter):
         )
 
     async def poll_once(self, *, timeout: float = 0.0) -> list[MessageEvent]:
+        if self.webhook_enabled:
+            return await self._poll_webhook_events(timeout=timeout)
         # When python-telegram-bot updater polling is active, incoming updates are
         # delivered via registered handlers (push mode). Calling getUpdates here
         # would create a second poller and trigger Telegram conflict errors.
@@ -362,6 +406,73 @@ class TelegramAdapter(BasePlatformAdapter):
             events.append(event)
         self.config.extra["offset"] = self._update_offset
         return events
+
+    async def _poll_webhook_events(self, *, timeout: float = 0.0) -> list[MessageEvent]:
+        events: list[MessageEvent] = []
+        if self._webhook_events.empty() and timeout > 0:
+            try:
+                first = await asyncio.wait_for(self._webhook_events.get(), timeout=max(0.0, timeout))
+            except asyncio.TimeoutError:
+                return []
+            events.append(first)
+        while not self._webhook_events.empty():
+            try:
+                events.append(self._webhook_events.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        return events
+
+    async def _ingest_webhook_update(self, update: dict[str, Any]) -> None:
+        message = update.get("message") or update.get("edited_message")
+        if not isinstance(message, dict):
+            return
+        event = self._parse_polled_message(message)
+        if event is None:
+            return
+        event.attachments = await self._resolve_attachments(message)
+        event.media_urls.extend(
+            attachment.split(": ", 1)[1]
+            for attachment in event.attachments
+            if ": " in attachment
+        )
+        await self._webhook_events.put(event)
+
+    async def _handle_webhook_request(self, request) -> "web.Response":
+        if self.webhook_secret:
+            actual = str(request.headers.get("X-Telegram-Bot-Api-Secret-Token", "") or "")
+            if actual != self.webhook_secret:
+                return web.json_response({"ok": False, "error": "invalid_secret"}, status=403)
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"ok": False, "error": "invalid_json"}, status=400)
+        if isinstance(payload, dict):
+            await self._ingest_webhook_update(payload)
+        return web.json_response({"ok": True})
+
+    async def _start_webhook_server(self) -> None:
+        if not AIOHTTP_AVAILABLE:
+            raise RuntimeError("aiohttp is required for Telegram webhook mode.")
+        self._webhook_app = web.Application()
+        self._webhook_app.router.add_post(self.webhook_path, self._handle_webhook_request)
+        self._webhook_runner = web.AppRunner(self._webhook_app)
+        await self._webhook_runner.setup()
+        self._webhook_site = web.TCPSite(
+            self._webhook_runner,
+            self.webhook_host,
+            self.webhook_port,
+        )
+        await self._webhook_site.start()
+
+    async def _stop_webhook_server(self) -> None:
+        if self._webhook_site is not None:
+            await self._webhook_site.stop()
+            self._webhook_site = None
+        if self._webhook_runner is not None:
+            await self._webhook_runner.cleanup()
+            self._webhook_runner = None
+        self._webhook_app = None
+        self._webhook_events = asyncio.Queue()
 
     @staticmethod
     def _looks_like_polling_conflict(error: Exception) -> bool:
@@ -416,6 +527,25 @@ class TelegramAdapter(BasePlatformAdapter):
                 return False
 
             if not TELEGRAM_AVAILABLE:
+                if self.webhook_enabled:
+                    await self._request_json(
+                        "setWebhook",
+                        payload={
+                            "url": self.webhook_url,
+                            "secret_token": self.webhook_secret or None,
+                            "allowed_updates": ["message", "edited_message"],
+                        },
+                    )
+                    await self._start_webhook_server()
+                    self._mark_connected()
+                    logger.info(
+                        "[%s] Connected to Telegram via Bot API webhook mode on %s:%s%s",
+                        self.name,
+                        self.webhook_host,
+                        self.webhook_port,
+                        self.webhook_path,
+                    )
+                    return True
                 await self._request_json("getMe")
                 try:
                     await self._request_json(
@@ -431,6 +561,27 @@ class TelegramAdapter(BasePlatformAdapter):
                     pass
                 self._mark_connected()
                 logger.info("[%s] Connected to Telegram via Bot API fallback", self.name)
+                return True
+
+            if self.webhook_enabled:
+                self._bot = Bot(self.config.token)
+                await self._request_json(
+                    "setWebhook",
+                    payload={
+                        "url": self.webhook_url,
+                        "secret_token": self.webhook_secret or None,
+                        "allowed_updates": ["message", "edited_message"],
+                    },
+                )
+                await self._start_webhook_server()
+                self._mark_connected()
+                logger.info(
+                    "[%s] Connected to Telegram via webhook mode on %s:%s%s",
+                    self.name,
+                    self.webhook_host,
+                    self.webhook_port,
+                    self.webhook_path,
+                )
                 return True
 
             # Build the application
@@ -534,6 +685,16 @@ class TelegramAdapter(BasePlatformAdapter):
         self._media_group_tasks.clear()
         self._media_group_events.clear()
 
+        if self.webhook_enabled:
+            try:
+                await self._request_json("deleteWebhook", payload={"drop_pending_updates": False})
+            except Exception as e:
+                logger.debug("[%s] Failed to delete Telegram webhook: %s", self.name, e, exc_info=True)
+            try:
+                await self._stop_webhook_server()
+            except Exception as e:
+                logger.warning("[%s] Error stopping Telegram webhook server: %s", self.name, e, exc_info=True)
+
         if self._app:
             try:
                 # Only stop the updater if it's running
@@ -556,6 +717,11 @@ class TelegramAdapter(BasePlatformAdapter):
                 task.cancel()
         self._pending_photo_batch_tasks.clear()
         self._pending_photo_batches.clear()
+        for task in self._pending_text_batch_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        self._pending_text_batch_tasks.clear()
+        self._pending_text_batches.clear()
 
         self._mark_disconnected()
         self._app = None
@@ -862,7 +1028,7 @@ class TelegramAdapter(BasePlatformAdapter):
                 )
             return SendResult(success=True, message_id=str(msg.message_id))
         except Exception as e:
-            print(f"[{self.name}] Failed to send document: {e}")
+            logger.warning("[%s] Failed to send Telegram document: %s", self.name, e, exc_info=True)
             return await super().send_document(chat_id, file_path, caption, file_name, reply_to)
 
     async def send_video(
@@ -890,7 +1056,7 @@ class TelegramAdapter(BasePlatformAdapter):
                 )
             return SendResult(success=True, message_id=str(msg.message_id))
         except Exception as e:
-            print(f"[{self.name}] Failed to send video: {e}")
+            logger.warning("[%s] Failed to send Telegram video: %s", self.name, e, exc_info=True)
             return await super().send_video(chat_id, video_path, caption, reply_to)
 
     async def send_image(

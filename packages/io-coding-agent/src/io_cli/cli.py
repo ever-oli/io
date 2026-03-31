@@ -19,17 +19,29 @@ from .banner import build_welcome_banner, prefetch_update_check
 from .commands import COMMANDS_BY_CATEGORY
 from .cron import CronManager
 from .doctor import doctor_report
-from .config import ensure_io_home, get_config_value, load_config, load_env, save_config, set_config_value
+from .config import ensure_io_home, get_config_value, load_config, load_env, resolve_io_home, save_config, set_config_value
 from .gateway import GatewayManager
 from .gateway_runner import run_gateway
 from .main import build_theme, format_prompt_result, run_prompt
+from .model_router import model_router_status, recommend_model_route, set_model_router_auto
+from .profiles import (
+    create_profile,
+    delete_profile,
+    export_profile,
+    import_profile,
+    list_profiles,
+    profile_status,
+    rename_profile,
+    set_active_profile,
+)
 from .repl_prompt import build_repl_prompt_extras
 from .repl_slash import handle_repl_slash_command
 from io_ai import fuzzy_filter
 
 from .models import format_available_models_table, list_auth_available_model_refs, list_models
 from .pairing import pairing_command
-from .skills import discover_skills, inspect_skill, save_skill_toggle, search_skills
+from .skills import discover_skills, inspect_skill, save_skill_toggle
+from .skills_hub import SkillsHub
 from .session import SessionManager
 from .status import render_status_text, status_report
 from .toolsets import enabled_tools_for_platform, set_toolset_enabled, toolsets_status
@@ -41,6 +53,8 @@ from io_agent import resolve_runtime
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="io", description="IO coding agent by Most Wanted Research")
+    parser.add_argument("-p", "--profile", help="Named IO profile (default uses ~/.io or the sticky active profile)")
+    parser.add_argument("--home", type=Path, default=None, help="Override IO home directory (highest precedence)")
     subparsers = parser.add_subparsers(dest="command")
 
     ask = subparsers.add_parser("ask", help="Run a single prompt")
@@ -152,16 +166,31 @@ def build_parser() -> argparse.ArgumentParser:
     skills = subparsers.add_parser("skills", help="Discover and configure skills")
     skills_subparsers = skills.add_subparsers(dest="skills_command")
     skills_list = skills_subparsers.add_parser("list", help="List discovered skills")
+    skills_list.add_argument("--source", choices=("local", "hub", "all"), default="local")
     skills_list.add_argument("--platform", default="cli")
     skills_list.add_argument("--cwd", type=Path, default=Path.cwd())
+    skills_browse = skills_subparsers.add_parser("browse", help="Browse hub skills")
+    skills_browse.add_argument("--source", choices=("all", "official", "github", "clawhub"), default="all")
+    skills_browse.add_argument("--cwd", type=Path, default=Path.cwd())
     skills_search = skills_subparsers.add_parser("search", help="Search discovered skills")
     skills_search.add_argument("query")
-    skills_search.add_argument("--platform", default="cli")
+    skills_search.add_argument("--source", choices=("all", "official", "github", "clawhub"), default="all")
     skills_search.add_argument("--cwd", type=Path, default=Path.cwd())
     skills_inspect = skills_subparsers.add_parser("inspect", help="Print the SKILL.md for one skill")
     skills_inspect.add_argument("name")
+    skills_inspect.add_argument("--source", default="auto")
     skills_inspect.add_argument("--platform", default="cli")
     skills_inspect.add_argument("--cwd", type=Path, default=Path.cwd())
+    skills_install = skills_subparsers.add_parser("install", help="Install a hub skill into ~/.io/skills")
+    skills_install.add_argument("identifier")
+    skills_install.add_argument("--force", action="store_true")
+    skills_install.add_argument("--cwd", type=Path, default=Path.cwd())
+    skills_uninstall = skills_subparsers.add_parser("uninstall", help="Remove a hub-managed installed skill")
+    skills_uninstall.add_argument("identifier")
+    skills_uninstall.add_argument("--cwd", type=Path, default=Path.cwd())
+    skills_check = skills_subparsers.add_parser("check", help="Check installed hub skills for upstream updates")
+    skills_check.add_argument("identifier", nargs="?")
+    skills_check.add_argument("--cwd", type=Path, default=Path.cwd())
     skills_enable = skills_subparsers.add_parser("enable", help="Enable a skill")
     skills_enable.add_argument("name")
     skills_enable.add_argument("--platform", default="cli")
@@ -187,6 +216,46 @@ def build_parser() -> argparse.ArgumentParser:
     gateway_run.add_argument("--once", action="store_true", help="Run one gateway iteration and exit")
     gateway_run.add_argument("--poll-interval", type=float, default=2.0)
     gateway_run.add_argument("--max-loops", type=int)
+
+    profile = subparsers.add_parser("profile", help="Manage named IO profiles")
+    profile_subparsers = profile.add_subparsers(dest="profile_command")
+    profile_status_parser = profile_subparsers.add_parser("status", help="Show the active or selected profile")
+    profile_status_parser.add_argument("name", nargs="?")
+    profile_subparsers.add_parser("list", help="List known profiles")
+    profile_create = profile_subparsers.add_parser("create", help="Create a new named profile")
+    profile_create.add_argument("name")
+    profile_create.add_argument("--source-profile", default=None, help="Profile to clone from (default active)")
+    profile_create.add_argument("--clone", action="store_true", help="Copy config/.env/auth/SOUL from the source profile")
+    profile_create.add_argument("--clone-all", action="store_true", help="Copy the full profile then strip runtime artifacts")
+    profile_use = profile_subparsers.add_parser("use", help="Set the sticky active profile")
+    profile_use.add_argument("name")
+    profile_delete = profile_subparsers.add_parser("delete", help="Delete a named profile")
+    profile_delete.add_argument("name")
+    profile_rename = profile_subparsers.add_parser("rename", help="Rename a named profile")
+    profile_rename.add_argument("old_name")
+    profile_rename.add_argument("new_name")
+    profile_export = profile_subparsers.add_parser("export", help="Export a profile to a tar.gz archive")
+    profile_export.add_argument("name")
+    profile_export.add_argument("out", type=Path)
+    profile_import = profile_subparsers.add_parser("import", help="Import a profile from a tar.gz archive")
+    profile_import.add_argument("name")
+    profile_import.add_argument("archive", type=Path)
+
+    model_router = subparsers.add_parser("model-router", help="Inspect or control smart model routing")
+    model_router_subparsers = model_router.add_subparsers(dest="model_router_command")
+    model_router_subparsers.add_parser("status", help="Show router configuration and active fallback chain")
+    model_router_recommend = model_router_subparsers.add_parser("recommend", help="Recommend a route for a task")
+    model_router_recommend.add_argument("task")
+    model_router_auto = model_router_subparsers.add_parser("auto", help="Toggle automatic cheap-model routing")
+    model_router_auto.add_argument("value", choices=("on", "off"))
+
+    mcp = subparsers.add_parser("mcp", help="Expose IO as an MCP server")
+    mcp_subparsers = mcp.add_subparsers(dest="mcp_command")
+    mcp_serve = mcp_subparsers.add_parser("serve", help="Run the MCP bridge server")
+    mcp_serve.add_argument("--transport", choices=("stdio", "streamable-http"), default="stdio")
+    mcp_serve.add_argument("--host", default="127.0.0.1")
+    mcp_serve.add_argument("--port", type=int, default=8765)
+    mcp_serve.add_argument("--verbose", action="store_true")
 
     lean = subparsers.add_parser(
         "lean",
@@ -654,15 +723,27 @@ def _run_repl(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_cli_home(args: argparse.Namespace) -> Path:
+    selected = resolve_io_home(getattr(args, "home", None), profile=getattr(args, "profile", None))
+    os.environ["IO_HOME"] = str(selected)
+    if getattr(args, "profile", None) and getattr(args, "home", None) is None:
+        os.environ["IO_PROFILE"] = str(args.profile)
+    elif getattr(args, "home", None) is not None:
+        os.environ.pop("IO_PROFILE", None)
+    return selected
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    selected_home = _resolve_cli_home(args)
 
     if args.command == "ask":
         result = asyncio.run(
             run_prompt(
                 args.prompt,
                 cwd=args.cwd,
+                home=selected_home,
                 model=args.model,
                 provider=args.provider,
                 base_url=args.base_url,
@@ -675,7 +756,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "models":
-        home = ensure_io_home(None)
+        home = ensure_io_home(selected_home)
         cfg = load_config(home)
         if args.verbose:
             payload = list_models(provider=args.provider, detailed=True)
@@ -702,7 +783,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "sessions":
         if args.sessions_command in {None, "list"}:
-            for path in SessionManager.list_for_cwd(args.cwd):
+            for path in SessionManager.list_for_cwd(args.cwd, home=selected_home):
                 print(path)
             return 0
         if args.sessions_command == "show":
@@ -724,6 +805,7 @@ def main(argv: list[str] | None = None) -> int:
             run_prompt(
                 f"TOOL[session_search] {json.dumps({'query': args.query, 'limit': 10})}",
                 cwd=args.cwd,
+                home=selected_home,
                 model="mock/io-test",
                 provider="mock",
                 toolsets=["safe"],
@@ -736,7 +818,7 @@ def main(argv: list[str] | None = None) -> int:
         from .config import soul_status_payload
 
         if args.soul_command == "status":
-            home = ensure_io_home(None)
+            home = ensure_io_home(selected_home)
             payload = soul_status_payload(home=home, cwd=args.cwd)
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
@@ -748,17 +830,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "status":
         if args.pretty:
-            print(render_status_text(show_all=args.all))
+            print(render_status_text(show_all=args.all, home=selected_home))
         else:
-            print(json.dumps(status_report(), indent=2, sort_keys=True))
+            print(json.dumps(status_report(home=selected_home), indent=2, sort_keys=True))
         return 0
 
     if args.command == "setup":
-        print(ensure_io_home(args.home))
+        print(ensure_io_home(selected_home))
         return 0
 
     if args.command == "auth":
-        home = ensure_io_home(args.home)
+        home = ensure_io_home(selected_home)
         if args.auth_command == "mcp-login":
             from .mcp_runtime import MCPAuthStore, mcp_auth_status
 
@@ -801,7 +883,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "config":
-        config = load_config()
+        config = load_config(selected_home)
         if args.config_command in {None, "show"}:
             print(json.dumps(config, indent=2, sort_keys=True))
             return 0
@@ -814,12 +896,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.config_command == "set":
             new_value = yaml.safe_load(args.value)
-            save_config(set_config_value(config, args.path, new_value))
+            save_config(set_config_value(config, args.path, new_value), selected_home)
             print(args.path)
             return 0
 
     if args.command == "tools":
-        config = load_config()
+        config = load_config(selected_home)
         if args.tools_command in {None, "list"}:
             payload = {
                 "platform": args.platform,
@@ -833,11 +915,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if args.tools_command == "enable":
-            save_config(set_toolset_enabled(config, args.toolset, True, platform=args.platform))
+            save_config(set_toolset_enabled(config, args.toolset, True, platform=args.platform), selected_home)
             print(args.toolset)
             return 0
         if args.tools_command == "disable":
-            save_config(set_toolset_enabled(config, args.toolset, False, platform=args.platform))
+            save_config(set_toolset_enabled(config, args.toolset, False, platform=args.platform), selected_home)
             print(args.toolset)
             return 0
 
@@ -846,17 +928,41 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "skills":
+        service = SkillsHub(home=selected_home, cwd=getattr(args, "cwd", Path.cwd()))
         if args.skills_command in {None, "list"}:
-            payload = [skill.to_dict() for skill in discover_skills(cwd=args.cwd, platform=args.platform)]
+            if args.source == "local":
+                payload = [skill.to_dict() for skill in discover_skills(home=selected_home, cwd=args.cwd, platform=args.platform)]
+            elif args.source == "hub":
+                payload = service.list_installed()
+            else:
+                payload = {
+                    "local_skills": [skill.to_dict() for skill in discover_skills(home=selected_home, cwd=args.cwd, platform=args.platform)],
+                    "installed_hub": service.list_installed()["skills"],
+                }
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.skills_command == "browse":
+            print(json.dumps(service.browse(source=args.source), indent=2, sort_keys=True))
+            return 0
         if args.skills_command == "search":
-            payload = search_skills(args.query, cwd=args.cwd, platform=args.platform)
+            payload = service.search(args.query, source=args.source)
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if args.skills_command == "inspect":
-            payload = inspect_skill(args.name, cwd=args.cwd, platform=args.platform)
+            if args.source == "local":
+                payload = inspect_skill(args.name, home=selected_home, cwd=args.cwd, platform=args.platform)
+            else:
+                payload = service.inspect(args.name)
             print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.skills_command == "install":
+            print(json.dumps(service.install(args.identifier, force=bool(args.force)), indent=2, sort_keys=True))
+            return 0
+        if args.skills_command == "uninstall":
+            print(json.dumps(service.uninstall(args.identifier), indent=2, sort_keys=True))
+            return 0
+        if args.skills_command == "check":
+            print(json.dumps(service.check_updates(args.identifier), indent=2, sort_keys=True))
             return 0
         if args.skills_command == "enable":
             save_skill_toggle(args.name, enabled=True, platform=args.platform)
@@ -868,7 +974,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "gateway":
-        manager = GatewayManager()
+        manager = GatewayManager(home=selected_home)
         if args.gateway_command in {None, "status"}:
             print(json.dumps(manager.status(), indent=2, sort_keys=True))
             return 0
@@ -915,7 +1021,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "gauss":
         from .gauss import run_gauss_passthrough
 
-        home = ensure_io_home(None)
+        home = ensure_io_home(selected_home)
         config = load_config(home)
         gauss_args = getattr(args, "gauss_args", []) or []
         return run_gauss_passthrough(gauss_args, config=config, home=home)
@@ -924,7 +1030,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.security_command == "tirith-install":
             from .security.tirith import install_tirith_via_cargo
 
-            home = ensure_io_home(args.home)
+            home = ensure_io_home(selected_home)
             config = load_config(home)
             sec = config.get("security") if isinstance(config.get("security"), dict) else {}
             tir = sec.get("tirith") if isinstance(sec.get("tirith"), dict) else {}
@@ -952,7 +1058,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         from . import lean_projects as lean_projects_mod
 
-        home = ensure_io_home(None)
+        home = ensure_io_home(selected_home)
         config = load_config(home)
         if args.lean_command == "backends":
             if args.lean_backends_command == "list":
@@ -1070,11 +1176,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "pairing":
-        pairing_command(args)
+        pairing_command(args, home=selected_home)
         return 0
 
     if args.command == "cron":
-        manager = CronManager()
+        manager = CronManager(home=selected_home)
         if args.cron_command in {None, "list"}:
             print(json.dumps(manager.list_jobs(), indent=2, sort_keys=True))
             return 0
@@ -1134,18 +1240,99 @@ def main(argv: list[str] | None = None) -> int:
         from .trajectory_export import export_trajectories_jsonl, list_exportable_sessions, summarize_export_jsonl
 
         if args.research_command == "list":
-            h = ensure_io_home(args.home)
+            h = ensure_io_home(selected_home)
             rows = list_exportable_sessions(home=h, limit_sessions=args.limit)
             print(json.dumps(rows, indent=2, sort_keys=True))
             return 0
         if args.research_command == "export":
-            h = ensure_io_home(args.home)
+            h = ensure_io_home(selected_home)
             lines = export_trajectories_jsonl(home=h, out=args.out, limit_sessions=args.limit)
             print(f"Exported {lines} sessions to {args.out}")
             return 0
         if args.research_command == "summary":
             print(json.dumps(summarize_export_jsonl(args.path), indent=2, sort_keys=True))
             return 0
+        return 1
+
+    if args.command == "profile":
+        try:
+            if args.profile_command in {None, "status"}:
+                print(json.dumps(profile_status(args.name if hasattr(args, "name") else None), indent=2, sort_keys=True))
+                return 0
+            if args.profile_command == "list":
+                print(json.dumps(list_profiles(), indent=2, sort_keys=True))
+                return 0
+            if args.profile_command == "create":
+                print(
+                    json.dumps(
+                        create_profile(
+                            args.name,
+                            source_profile=args.source_profile,
+                            clone_config=bool(args.clone),
+                            clone_all=bool(args.clone_all),
+                        ),
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+                return 0
+            if args.profile_command == "use":
+                print(json.dumps(set_active_profile(args.name), indent=2, sort_keys=True))
+                return 0
+            if args.profile_command == "delete":
+                print(json.dumps(delete_profile(args.name), indent=2, sort_keys=True))
+                return 0
+            if args.profile_command == "rename":
+                print(json.dumps(rename_profile(args.old_name, args.new_name), indent=2, sort_keys=True))
+                return 0
+            if args.profile_command == "export":
+                print(json.dumps(export_profile(args.name, args.out), indent=2, sort_keys=True))
+                return 0
+            if args.profile_command == "import":
+                print(json.dumps(import_profile(args.name, args.archive), indent=2, sort_keys=True))
+                return 0
+        except Exception as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    if args.command == "model-router":
+        config = load_config(selected_home)
+        env = {**load_env(selected_home), **os.environ}
+        if args.model_router_command in {None, "status"}:
+            print(json.dumps(model_router_status(config=config, home=selected_home, env=env), indent=2, sort_keys=True))
+            return 0
+        if args.model_router_command == "recommend":
+            print(
+                json.dumps(
+                    recommend_model_route(args.task, config=config, home=selected_home, env=env),
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if args.model_router_command == "auto":
+            save_config(set_model_router_auto(config, args.value == "on"), selected_home)
+            print(
+                json.dumps(
+                    model_router_status(config=load_config(selected_home), home=selected_home, env=env),
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+
+    if args.command == "mcp":
+        if args.mcp_command == "serve":
+            from .mcp_serve import serve_mcp
+
+            return serve_mcp(
+                home=selected_home,
+                transport=args.transport,
+                host=args.host,
+                port=args.port,
+                verbose=bool(args.verbose),
+            )
+        parser.print_help()
         return 1
 
     if args.command in {"chat", "repl"}:

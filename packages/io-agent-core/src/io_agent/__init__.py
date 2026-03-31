@@ -14,7 +14,7 @@ from .events import (
     ToolOutputDeltaEvent,
     TurnStartEvent,
 )
-from .providers import ResolvedRuntime, resolve_runtime
+from .providers import ResolvedRuntime, RuntimeTarget, resolve_runtime
 from .session import SessionDB, SessionStore
 from .semantic_context import build_repo_map, semantic_search
 from .tools import (
@@ -41,6 +41,7 @@ __all__ = [
     "MessageDeltaEvent",
     "MessageEvent",
     "ResolvedRuntime",
+    "RuntimeTarget",
     "SessionConfig",
     "SessionDB",
     "SessionStore",

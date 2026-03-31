@@ -11,9 +11,11 @@ from typing import Any, Callable
 from io_agent import Agent, ContextCompressor, SessionDB, build_repo_map, resolve_runtime, semantic_search
 from io_ai.types import Usage
 
+from .approval_queue import ApprovalQueueStore
 from .config import ensure_io_home, load_config, load_env, load_soul, memory_snapshot
 from .context_references import expand_at_references
 from .extensions import ExtensionRunner
+from .model_router import apply_model_routing
 from .session import SessionManager
 from .skin_engine import SkinEngine
 from .toolsets import build_toolset_resolver
@@ -30,10 +32,48 @@ class PromptResult:
     loaded_extensions: list[str]
     usage: Usage = field(default_factory=Usage)
     interrupted: bool = False
+    runtime_target: dict[str, Any] = field(default_factory=dict)
+    runtime_attempts: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _default_approval_callback(_tool_name: str, _arguments: dict[str, Any], _reason: str) -> bool:
     return os.getenv("IO_AUTO_APPROVE_DANGEROUS", "0") == "1"
+
+
+def _build_approval_callback(
+    *,
+    home: Path,
+    config: dict[str, Any],
+    env: dict[str, str],
+) -> Callable[[str, dict[str, Any], str], bool]:
+    if os.getenv("IO_AUTO_APPROVE_DANGEROUS", "0") == "1":
+        return _default_approval_callback
+
+    gateway_cfg = config.get("gateway") if isinstance(config.get("gateway"), dict) else {}
+    queue_enabled = bool(gateway_cfg.get("remote_approval_queue", False))
+    if str(env.get("IO_GATEWAY_SESSION", "") or "").strip().lower() in {"1", "true", "yes", "on"}:
+        queue_enabled = True
+    if str(env.get("IO_REMOTE_APPROVALS", "") or "").strip().lower() in {"1", "true", "yes", "on"}:
+        queue_enabled = True
+    if not queue_enabled:
+        return _default_approval_callback
+
+    timeout_seconds = float(gateway_cfg.get("remote_approval_timeout_seconds", 60) or 60)
+    timeout_seconds = float(env.get("IO_REMOTE_APPROVAL_TIMEOUT_SECONDS", timeout_seconds) or timeout_seconds)
+    session_id = str(env.get("IO_SESSION_ID", "") or "")
+    store = ApprovalQueueStore(home=home)
+
+    def _callback(tool_name: str, arguments: dict[str, Any], reason: str) -> bool:
+        decision = store.request_approval(
+            session_id=session_id,
+            tool_name=tool_name,
+            arguments=arguments,
+            reason=reason,
+            timeout_seconds=timeout_seconds,
+        )
+        return decision in {"allow_once", "allow_always"}
+
+    return _callback
 
 
 def _build_compressor(config: dict[str, Any]) -> ContextCompressor:
@@ -84,6 +124,7 @@ async def run_prompt(
         env=env,
         home=home,
     )
+    runtime = apply_model_routing(prompt, runtime=runtime, config=config, env=env, home=home)
     session_db = SessionDB(home / "state.db")
     session_db.start_session(
         session_manager.session_id,
@@ -91,6 +132,18 @@ async def run_prompt(
         cwd=str(cwd),
         model=runtime.model,
         title=session_manager.get_session_name() or prompt[:72],
+        model_config={
+            "cwd": str(cwd),
+            "provider": runtime.provider,
+            "model": runtime.model,
+            "requested_provider": runtime.requested_provider,
+            "requested_model": runtime.requested_model,
+            "route_kind": runtime.route_kind,
+            "route_label": runtime.route_label,
+            "route_reason": runtime.route_reason,
+            "fallback_targets": [item.to_dict() for item in runtime.fallback_targets],
+            "primary_target": (runtime.primary_target or runtime.active_target()).to_dict(),
+        },
     )
 
     extension_runner = ExtensionRunner(search_paths=ExtensionRunner.default_paths(home=home, cwd=cwd))
@@ -201,7 +254,7 @@ async def run_prompt(
         before_model_call=before_model_call,
         before_tool_call=before_tool_call,
         after_tool_result=after_tool_result,
-        approval_callback=_default_approval_callback,
+        approval_callback=_build_approval_callback(home=home, config=config, env=env),
         session_db=session_db,
         history=initial_messages,
         env=env,
@@ -213,7 +266,10 @@ async def run_prompt(
             "runtime_model": runtime.model,
             "runtime_provider": runtime.provider,
             "runtime_base_url": runtime.base_url,
+            "runtime_route_kind": runtime.route_kind,
+            "runtime_route_label": runtime.route_label,
         },
+        runtime_targets=[item.to_dict() for item in runtime.all_targets()],
     )
 
     new_messages = result.messages[baseline:]
@@ -254,6 +310,8 @@ async def run_prompt(
         loaded_extensions=loaded_extensions,
         usage=result.usage,
         interrupted=result.interrupted,
+        runtime_target=dict(result.runtime_target or runtime.active_target().to_dict()),
+        runtime_attempts=list(result.runtime_attempts or []),
     )
 
 
@@ -265,6 +323,8 @@ def format_prompt_result(result: PromptResult, *, as_json: bool = False) -> str:
         "session_path": str(result.session_path),
         "messages": result.messages,
         "loaded_extensions": result.loaded_extensions,
+        "runtime_target": result.runtime_target,
+        "runtime_attempts": result.runtime_attempts,
         "usage": {
             "input_tokens": result.usage.input_tokens,
             "output_tokens": result.usage.output_tokens,

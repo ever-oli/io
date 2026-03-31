@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
+import tempfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -21,6 +24,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "base_url": "",
         "api_mode": "",
     },
+    "fallback_providers": [],
+    "fallback_model": {},
     "toolsets": ["io-cli"],
     "agent": {
         "max_turns": 90,
@@ -144,6 +149,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "gateway": {
         "enabled": False,
+        "remote_approval_queue": False,
+        "remote_approval_timeout_seconds": 60,
         "tool_trace": True,
         "tool_trace_mode": "compact",
         "tool_trace_icon_preset": "emoji",
@@ -232,9 +239,133 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "custom_providers": [],
 }
 
+DEFAULT_PROFILE = "default"
+PROFILE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+
+
+def get_default_io_home() -> Path:
+    return Path.home() / ".io"
+
+
+def get_profiles_root() -> Path:
+    return get_default_io_home() / "profiles"
+
+
+def get_active_profile_path() -> Path:
+    return get_default_io_home() / "active_profile"
+
+
+def validate_profile_name(name: str) -> str:
+    normalized = str(name or "").strip().lower()
+    if normalized == DEFAULT_PROFILE:
+        return DEFAULT_PROFILE
+    if not PROFILE_NAME_RE.match(normalized):
+        raise ValueError(
+            f"Invalid profile name {name!r}. Expected {PROFILE_NAME_RE.pattern!r} or 'default'."
+        )
+    return normalized
+
+
+def get_profile_home(name: str) -> Path:
+    normalized = validate_profile_name(name)
+    if normalized == DEFAULT_PROFILE:
+        return get_default_io_home()
+    return get_profiles_root() / normalized
+
+
+def read_active_profile() -> str:
+    path = get_active_profile_path()
+    try:
+        selected = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return DEFAULT_PROFILE
+    if not selected:
+        return DEFAULT_PROFILE
+    try:
+        return validate_profile_name(selected)
+    except ValueError:
+        return DEFAULT_PROFILE
+
+
+def resolve_io_home(
+    home: Path | None = None,
+    *,
+    profile: str | None = None,
+    env: dict[str, str] | None = None,
+) -> Path:
+    runtime_env = dict(os.environ) if env is None else dict(env)
+    if home is not None:
+        return Path(home).expanduser().resolve()
+
+    explicit_home = str(runtime_env.get("IO_HOME", "") or "").strip()
+    if explicit_home:
+        return Path(explicit_home).expanduser().resolve()
+
+    selected_profile = profile or runtime_env.get("IO_PROFILE") or read_active_profile()
+    return get_profile_home(validate_profile_name(selected_profile))
+
+
+def _atomic_write_bytes(path: Path, data: bytes, *, chmod: int | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if chmod is not None:
+            try:
+                os.chmod(tmp_path, chmod)
+            except OSError:
+                pass
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def atomic_write_text(
+    path: Path,
+    text: str,
+    *,
+    encoding: str = "utf-8",
+    chmod: int | None = None,
+) -> None:
+    _atomic_write_bytes(path, text.encode(encoding), chmod=chmod)
+
+
+def atomic_write_json(
+    path: Path,
+    payload: Any,
+    *,
+    indent: int = 2,
+    sort_keys: bool = True,
+    ensure_ascii: bool = False,
+    chmod: int | None = None,
+) -> None:
+    atomic_write_text(
+        path,
+        json.dumps(payload, indent=indent, sort_keys=sort_keys, ensure_ascii=ensure_ascii),
+        chmod=chmod,
+    )
+
+
+def atomic_write_yaml(
+    path: Path,
+    payload: Any,
+    *,
+    sort_keys: bool = False,
+    chmod: int | None = None,
+) -> None:
+    atomic_write_text(path, yaml.safe_dump(payload, sort_keys=sort_keys), chmod=chmod)
+
 
 def get_io_home() -> Path:
-    return Path(os.getenv("IO_HOME", Path.home() / ".io"))
+    return resolve_io_home()
 
 
 def get_config_path(home: Path | None = None) -> Path:
@@ -277,12 +408,12 @@ def _ensure_default_soul(home: Path) -> None:
     soul_path = home / "SOUL.md"
     if soul_path.exists():
         return
-    soul_path.write_text(DEFAULT_SOUL_MD, encoding="utf-8")
+    atomic_write_text(soul_path, DEFAULT_SOUL_MD, chmod=0o600)
     _secure_file(soul_path)
 
 
 def ensure_io_home(home: Path | None = None) -> Path:
-    home = home or get_io_home()
+    home = resolve_io_home(home)
     directories = (
         home,
         home / "cron",
@@ -292,6 +423,7 @@ def ensure_io_home(home: Path | None = None) -> Path:
         home / "skins",
         home / "gateway",
         home / "pairing",
+        home / "approvals",
         home / "sandboxes",
         home / "agent",
         home / "agent" / "sessions",
@@ -305,12 +437,12 @@ def ensure_io_home(home: Path | None = None) -> Path:
 
     config_path = home / "config.yaml"
     if not config_path.exists():
-        config_path.write_text(yaml.safe_dump(DEFAULT_CONFIG, sort_keys=False), encoding="utf-8")
+        atomic_write_yaml(config_path, DEFAULT_CONFIG, sort_keys=False, chmod=0o600)
         _secure_file(config_path)
 
     env_path = home / ".env"
     if not env_path.exists():
-        env_path.write_text("", encoding="utf-8")
+        atomic_write_text(env_path, "", chmod=0o600)
         _secure_file(env_path)
 
     return home
@@ -328,7 +460,7 @@ def load_config(home: Path | None = None) -> dict[str, Any]:
 def save_config(config: dict[str, Any], home: Path | None = None) -> Path:
     home = ensure_io_home(home)
     config_path = home / "config.yaml"
-    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    atomic_write_yaml(config_path, config, sort_keys=False, chmod=0o600)
     _secure_file(config_path)
     return config_path
 

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .config import ensure_io_home
+from .config import atomic_write_json, ensure_io_home
 
 
 def _utc_now() -> datetime:
@@ -46,7 +46,7 @@ class MCPAuthStore:
             "servers": payload.get("servers", {}) if isinstance(payload.get("servers"), dict) else {},
             "updated_at": _utc_now().isoformat(),
         }
-        self.auth_path.write_text(json.dumps(normalized, indent=2, sort_keys=True), encoding="utf-8")
+        atomic_write_json(self.auth_path, normalized, indent=2, sort_keys=True, chmod=0o600)
 
     def set_token(self, server: str, token: str, *, expires_at: str | None = None) -> None:
         payload = self.load()
@@ -94,4 +94,3 @@ def mcp_auth_status(home: Path | None = None) -> dict[str, Any]:
             "expires_at": expires_at,
         }
     return out
-

@@ -98,6 +98,69 @@ def test_telegram_adapter_start_registers_bot_commands(monkeypatch) -> None:
     assert calls[1][1]["commands"]
 
 
+def test_telegram_adapter_webhook_connect_registers_webhook(monkeypatch) -> None:
+    adapter = TelegramAdapter(
+        PlatformConfig(
+            enabled=True,
+            token="123:secret",
+            extra={
+                "webhook_url": "https://example.com/tg/webhook",
+                "webhook_port": "9443",
+                "webhook_secret": "shared-secret",
+            },
+        )
+    )
+    calls: list[tuple[str, dict | None]] = []
+
+    async def fake_request(method: str, *, payload=None):
+        calls.append((method, payload))
+        return {"ok": True, "result": {"id": 1}}
+
+    async def fake_start_webhook_server() -> None:
+        return None
+
+    monkeypatch.setattr("io_cli.gateway_platforms.telegram.TELEGRAM_AVAILABLE", False)
+    monkeypatch.setattr(adapter, "_request_json", fake_request)
+    monkeypatch.setattr(adapter, "_start_webhook_server", fake_start_webhook_server)
+
+    connected = asyncio.run(adapter.connect())
+
+    assert connected is True
+    assert calls[0][0] == "setWebhook"
+    assert calls[0][1]["url"] == "https://example.com/tg/webhook"
+    assert calls[0][1]["secret_token"] == "shared-secret"
+
+
+def test_telegram_adapter_webhook_poll_once_reads_queued_updates() -> None:
+    adapter = TelegramAdapter(
+        PlatformConfig(
+            enabled=True,
+            token="123:secret",
+            extra={"webhook_url": "https://example.com/tg/webhook"},
+        )
+    )
+
+    asyncio.run(
+        adapter._ingest_webhook_update(
+            {
+                "update_id": 11,
+                "message": {
+                    "message_id": 77,
+                    "text": "hello via webhook",
+                    "chat": {"id": 456, "type": "private", "username": "ever"},
+                    "from": {"id": 111, "username": "ever", "is_bot": False},
+                },
+            }
+        )
+    )
+
+    events = asyncio.run(adapter.poll_once(timeout=0))
+
+    assert len(events) == 1
+    assert events[0].text == "hello via webhook"
+    assert events[0].source.chat_id == "456"
+
+
 def test_telegram_adapter_resets_offset_when_token_changes() -> None:
     cfg = PlatformConfig(
         enabled=True,
@@ -423,6 +486,12 @@ def test_gateway_runner_handles_slash_commands_and_updates_config(tmp_path: Path
                 MessageEvent(source=source, text="/status", message_type=MessageType.COMMAND, message_id="c5"),
                 MessageEvent(source=source, text="/usage", message_type=MessageType.COMMAND, message_id="c6"),
                 MessageEvent(source=source, text="/platforms", message_type=MessageType.COMMAND, message_id="c7"),
+                MessageEvent(
+                    source=source,
+                    text="/skills browse --source official",
+                    message_type=MessageType.COMMAND,
+                    message_id="c8",
+                ),
             ]
 
         async def send_message(
@@ -460,21 +529,23 @@ def test_gateway_runner_handles_slash_commands_and_updates_config(tmp_path: Path
 
     result = GatewayRunner(home=manager.home, poll_interval=0.1).run_sync(once=True)
 
-    assert result["messages_processed"] == 7
+    assert result["messages_processed"] == 8
     config = load_config(manager.home)
     assert config["model"]["default"] == "openai/gpt-4.1"
     assert config["model"]["provider"] == "anthropic"
     gateway_config = manager.load_config()
     assert gateway_config.get_home_channel(Platform.TELEGRAM).chat_id == "456"
-    assert len(fake_adapter.sent) == 7
+    assert len(fake_adapter.sent) == 8
     assert "IO gateway commands:" in fake_adapter.sent[0]["content"]
     assert "Default model set to openai/gpt-4.1." in fake_adapter.sent[1]["content"]
     assert "Default provider set to anthropic." in fake_adapter.sent[2]["content"]
-    assert "This chat is now the home channel for telegram." in fake_adapter.sent[3]["content"]
+    assert "Home channel for telegram set to 456." in fake_adapter.sent[3]["content"]
     assert "IO session status" in fake_adapter.sent[4]["content"]
     assert "IO session usage" in fake_adapter.sent[5]["content"]
     assert "Gateway platforms" in fake_adapter.sent[6]["content"]
     assert "telegram: active, home=456" in fake_adapter.sent[6]["content"]
+    assert "Available skills:" in fake_adapter.sent[7]["content"]
+    assert "official/migration/openclaw-migration" in fake_adapter.sent[7]["content"]
 
 
 def test_gateway_runner_delivers_due_cron_job_to_telegram_home_channel(tmp_path: Path, monkeypatch) -> None:
@@ -644,6 +715,7 @@ def test_gateway_runner_handles_reasoning_personality_retry_undo(tmp_path: Path,
         )
 
     monkeypatch.setattr("io_cli.gateway_runner.run_prompt", fake_run_prompt)
+    monkeypatch.setattr("io_cli.gateway_control.run_prompt", fake_run_prompt)
 
     result = GatewayRunner(home=manager.home, poll_interval=0.1, max_loops=2).run_sync(once=False)
 

@@ -58,7 +58,6 @@ def _skill_roots(home: Path | None, cwd: Path | None) -> list[tuple[str, Path]]:
     resolved_home = ensure_io_home(home)
     roots = [
         ("repo", get_project_root() / "skills"),
-        ("repo-optional", get_project_root() / "optional-skills"),
         ("home", resolved_home / "skills"),
     ]
     if cwd is not None:

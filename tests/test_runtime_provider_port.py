@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from io_ai.codex_models import get_codex_model_ids
 from io_ai.models import copilot_model_api_mode
 from io_ai.runtime_provider import OPENROUTER_BASE_URL, resolve_runtime_provider
@@ -40,10 +42,15 @@ def test_resolve_runtime_provider_openrouter_ignores_codex_config_base_url() -> 
     assert resolved["base_url"] == OPENROUTER_BASE_URL
 
 
-def test_resolve_runtime_provider_auto_uses_custom_config_base_url() -> None:
+def test_resolve_runtime_provider_auto_uses_custom_config_base_url(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("io_ai.copilot_auth._try_gh_cli_token", lambda: None)
     resolved = resolve_runtime_provider(
         requested="auto",
         config={"model": {"provider": "auto", "base_url": "https://custom.example/v1/"}},
+        home=tmp_path / "home",
         env={},
     )
 
@@ -100,4 +107,3 @@ def test_get_codex_model_ids_reads_config_and_cache(tmp_path: Path, monkeypatch)
 def test_copilot_model_api_mode_prefers_responses_for_gpt5() -> None:
     assert copilot_model_api_mode("gpt-5.4") == "codex_responses"
     assert copilot_model_api_mode("claude-sonnet-4.6") == "chat_completions"
-

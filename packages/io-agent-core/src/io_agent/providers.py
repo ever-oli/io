@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,34 @@ from io_ai import (
 
 
 @dataclass(slots=True)
+class RuntimeTarget:
+    provider: str
+    model: str
+    base_url: str | None = None
+    api_key: str | None = None
+    api_mode: str = "chat_completions"
+    source: str = "default"
+    requested_provider: str | None = None
+    route_kind: str = "primary"
+    route_label: str = "primary"
+    route_reason: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "base_url": self.base_url,
+            "api_key": self.api_key,
+            "api_mode": self.api_mode,
+            "source": self.source,
+            "requested_provider": self.requested_provider,
+            "route_kind": self.route_kind,
+            "route_label": self.route_label,
+            "route_reason": self.route_reason,
+        }
+
+
+@dataclass(slots=True)
 class ResolvedRuntime:
     provider: str
     model: str
@@ -26,6 +54,29 @@ class ResolvedRuntime:
     api_mode: str = "chat_completions"
     source: str = "default"
     requested_provider: str | None = None
+    requested_model: str | None = None
+    route_kind: str = "primary"
+    route_label: str = "primary"
+    route_reason: str | None = None
+    fallback_targets: list[RuntimeTarget] = field(default_factory=list)
+    primary_target: RuntimeTarget | None = None
+
+    def active_target(self) -> RuntimeTarget:
+        return RuntimeTarget(
+            provider=self.provider,
+            model=self.model,
+            base_url=self.base_url,
+            api_key=self.api_key,
+            api_mode=self.api_mode,
+            source=self.source,
+            requested_provider=self.requested_provider,
+            route_kind=self.route_kind,
+            route_label=self.route_label,
+            route_reason=self.route_reason,
+        )
+
+    def all_targets(self) -> list[RuntimeTarget]:
+        return [self.active_target(), *self.fallback_targets]
 
 
 def _has_any_auth(store: AuthStore, config: dict[str, Any]) -> bool:
@@ -123,4 +174,18 @@ def resolve_runtime(
         api_mode=api_mode or chosen.api,
         source=source,
         requested_provider=requested_normalized,
+        requested_model=explicit_model or chosen.id,
+        route_kind="primary",
+        route_label="primary",
+        primary_target=RuntimeTarget(
+            provider=provider,
+            model=chosen.id,
+            base_url=base_url or chosen.base_url,
+            api_key=api_key,
+            api_mode=api_mode or chosen.api,
+            source=source,
+            requested_provider=requested_normalized,
+            route_kind="primary",
+            route_label="primary",
+        ),
     )

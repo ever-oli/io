@@ -68,3 +68,44 @@ def test_cli_gateway_run_once_invokes_runner(monkeypatch, capsys) -> None:
     payload = json.loads(captured.out)
     assert payload["ok"] is True
     assert payload["kwargs"]["once"] is True
+
+
+def test_cli_skills_install_and_list_hub(tmp_path: Path, capsys) -> None:
+    home = tmp_path / "home"
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+
+    exit_code = main(
+        [
+            "--home",
+            str(home),
+            "skills",
+            "install",
+            "official/migration/openclaw-migration",
+            "--cwd",
+            str(cwd),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["installed"]["identifier"] == "official/migration/openclaw-migration"
+
+    exit_code = main(
+        [
+            "--home",
+            str(home),
+            "skills",
+            "list",
+            "--source",
+            "hub",
+            "--cwd",
+            str(cwd),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert payload["count"] == 1

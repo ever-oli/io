@@ -224,6 +224,28 @@ def test_repl_slash_model_no_args_non_interactive_shows_status(tmp_path: Path) -
     assert "Current model:" in msg
 
 
+def test_repl_slash_skills_browse_official(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    save_config({"model": {}, "display": {}}, home)
+    ns = argparse.Namespace(model=None, provider=None, cwd=cwd)
+    handled, msg = asyncio.run(
+        handle_repl_slash_command(
+            "/skills browse --source official",
+            home=home,
+            cwd=cwd,
+            repl_args=ns,
+            load_extensions=False,
+            on_event=None,
+        )
+    )
+    assert handled is True
+    assert "Available skills:" in msg
+    assert "official/migration/openclaw-migration" in msg
+
+
 def test_repl_slash_unknown_still_error(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()

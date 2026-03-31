@@ -44,14 +44,11 @@ GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE = (
 # (e.g. Telegram file URLs expire after ~1 hour).
 # ---------------------------------------------------------------------------
 
-# Default location: {IO_HOME}/image_cache/
-IMAGE_CACHE_DIR = get_io_home() / "image_cache"
-
-
 def get_image_cache_dir() -> Path:
     """Return the image cache directory, creating it if it doesn't exist."""
-    IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    return IMAGE_CACHE_DIR
+    cache_dir = get_io_home() / "image_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
 
 def cache_image_from_bytes(data: bytes, ext: str = ".jpg") -> str:
@@ -127,13 +124,11 @@ def cleanup_image_cache(max_age_hours: int = 24) -> int:
 # here so the STT tool (OpenAI Whisper) can transcribe them from local files.
 # ---------------------------------------------------------------------------
 
-AUDIO_CACHE_DIR = get_io_home() / "audio_cache"
-
-
 def get_audio_cache_dir() -> Path:
     """Return the audio cache directory, creating it if it doesn't exist."""
-    AUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    return AUDIO_CACHE_DIR
+    cache_dir = get_io_home() / "audio_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
 
 def cache_audio_from_bytes(data: bytes, ext: str = ".ogg") -> str:
@@ -186,8 +181,6 @@ async def cache_audio_from_url(url: str, ext: str = ".ogg") -> str:
 # here so the agent can reference them by local file path.
 # ---------------------------------------------------------------------------
 
-DOCUMENT_CACHE_DIR = get_io_home() / "document_cache"
-
 SUPPORTED_DOCUMENT_TYPES = {
     ".pdf": "application/pdf",
     ".md": "text/markdown",
@@ -200,8 +193,9 @@ SUPPORTED_DOCUMENT_TYPES = {
 
 def get_document_cache_dir() -> Path:
     """Return the document cache directory, creating it if it doesn't exist."""
-    DOCUMENT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    return DOCUMENT_CACHE_DIR
+    cache_dir = get_io_home() / "document_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
 
 def cache_document_from_bytes(data: bytes, filename: str) -> str:

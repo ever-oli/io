@@ -11,8 +11,17 @@ from io_agent import resolve_runtime
 from .auth import auth_status
 from .colors import Colors, color
 from .cron import CronManager
-from .config import ensure_io_home, get_config_path, get_env_path, get_project_root, load_config, load_env
+from .config import (
+    ensure_io_home,
+    get_config_path,
+    get_env_path,
+    get_project_root,
+    load_config,
+    load_env,
+    read_active_profile,
+)
 from .gateway import GatewayManager
+from .model_router import model_router_status
 from .session import SessionManager
 
 
@@ -23,8 +32,10 @@ def status_report(home: Path | None = None, cwd: Path | None = None) -> dict[str
     env = {**load_env(home), **os.environ}
     runtime = resolve_runtime(config=config, home=home, env=env)
     sessions = SessionManager.list_for_cwd(cwd, home=home)
+    router = model_router_status(config=config, home=home, env=env)
     return {
         "home": str(home),
+        "active_profile": read_active_profile(),
         "cwd": str(cwd),
         "runtime": {
             "provider": runtime.provider,
@@ -36,6 +47,7 @@ def status_report(home: Path | None = None, cwd: Path | None = None) -> dict[str
         "config_path": str(get_config_path(home)),
         "env_path": str(get_env_path(home)),
         "toolsets": config.get("toolsets", []),
+        "model_router": router,
         "terminal": {
             "backend": str(config.get("terminal", {}).get("backend", "local")),
             "docker_image": str(config.get("terminal", {}).get("docker_image", "")),
@@ -100,6 +112,7 @@ def render_status_text(
         f"  Project:      {get_project_root()}",
         f"  Python:       {sys.version.split()[0]}",
         f"  .env file:    {check_mark(Path(report['env_path']).exists())} {'exists' if Path(report['env_path']).exists() else 'not found'}",
+        f"  Profile:      {report['active_profile']}",
         f"  Model:        {runtime['model']}",
         f"  Provider:     {runtime['provider']}",
         "",
@@ -138,6 +151,7 @@ def render_status_text(
             f"  Base URL:     {runtime['base_url'] or '(default)'}",
             f"  API Mode:     {runtime['api_mode']}",
             f"  Source:       {runtime['source']}",
+            f"  Router:       {'enabled' if report['model_router'].get('enabled') else 'disabled'}",
             f"  Toolsets:     {', '.join(report['toolsets']) if report['toolsets'] else '(none)'}",
             f"  Terminal:     {terminal['backend']}",
             f"  Target:       {terminal_target or '(default)'}",

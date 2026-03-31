@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from .config import atomic_write_json
+
 _GATEWAY_KIND = "io-gateway"
 _RUNTIME_STATUS_FILE = "gateway_state.json"
 _LOCKS_DIRNAME = "gateway-locks"
@@ -154,7 +156,7 @@ def _read_json_file(path: Path) -> Optional[dict[str, Any]]:
 
 def _write_json_file(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload))
+    atomic_write_json(path, payload, indent=None, sort_keys=False, chmod=0o600)
 
 
 def read_pid_record(home: Path | None = None) -> Optional[dict]:

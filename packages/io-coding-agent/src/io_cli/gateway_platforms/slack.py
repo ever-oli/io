@@ -10,10 +10,12 @@ Uses slack-bolt (Python) with Socket Mode for:
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
-from typing import Dict, List, Optional, Any
+from pathlib import Path, Path as _Path
+from typing import Any, Dict, List, Optional
 
 try:
     from slack_bolt.async_app import AsyncApp
@@ -27,9 +29,9 @@ except ImportError:
     AsyncWebClient = Any
 
 import sys
-from pathlib import Path as _Path
 sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
 
+from ..config import atomic_write_json, get_io_home
 from ..gateway_models import Platform, PlatformConfig
 from .base import (
     BasePlatformAdapter,
@@ -75,6 +77,10 @@ class SlackAdapter(BasePlatformAdapter):
         self._handler: Optional[AsyncSocketModeHandler] = None
         self._bot_user_id: Optional[str] = None
         self._user_name_cache: Dict[str, str] = {}  # user_id → display name
+        self._team_clients: Dict[str, AsyncWebClient] = {}
+        self._team_bot_user_ids: Dict[str, str] = {}
+        self._team_tokens: Dict[str, str] = {}
+        self._channel_team: Dict[str, str] = {}
 
     async def connect(self) -> bool:
         """Connect to Slack via Socket Mode."""
@@ -84,10 +90,10 @@ class SlackAdapter(BasePlatformAdapter):
             )
             return False
 
-        bot_token = self.config.token
-        app_token = os.getenv("SLACK_APP_TOKEN")
+        raw_bot_token = self.config.token
+        app_token = str(self.config.extra.get("app_token") or os.getenv("SLACK_APP_TOKEN", "")).strip()
 
-        if not bot_token:
+        if not raw_bot_token:
             logger.error("[Slack] SLACK_BOT_TOKEN not set")
             return False
         if not app_token:
@@ -95,12 +101,42 @@ class SlackAdapter(BasePlatformAdapter):
             return False
 
         try:
-            self._app = AsyncApp(token=bot_token)
+            bot_tokens = [item.strip() for item in str(raw_bot_token).split(",") if item.strip()]
+            tokens_file = str(self.config.extra.get("tokens_file") or "")
+            token_path = (
+                Path(tokens_file).expanduser()
+                if tokens_file
+                else (get_io_home() / "gateway" / "slack_tokens.json")
+            )
+            if token_path.exists():
+                try:
+                    payload = json.loads(token_path.read_text(encoding="utf-8"))
+                except Exception:
+                    payload = {}
+                if isinstance(payload, dict):
+                    for item in payload.values():
+                        if not isinstance(item, dict):
+                            continue
+                        token = str(item.get("token", "") or "").strip()
+                        if token and token not in bot_tokens:
+                            bot_tokens.append(token)
 
-            # Get our own bot user ID for mention detection
-            auth_response = await self._app.client.auth_test()
-            self._bot_user_id = auth_response.get("user_id")
-            bot_name = auth_response.get("user", "unknown")
+            primary_token = bot_tokens[0]
+            self._app = AsyncApp(token=primary_token)
+            for token in bot_tokens:
+                client = AsyncWebClient(token=token)
+                auth_response = await client.auth_test()
+                team_id = str(auth_response.get("team_id", "") or "")
+                bot_user_id = str(auth_response.get("user_id", "") or "")
+                if team_id:
+                    self._team_clients[team_id] = client
+                    self._team_tokens[team_id] = token
+                if team_id and bot_user_id:
+                    self._team_bot_user_ids[team_id] = bot_user_id
+                if self._bot_user_id is None and bot_user_id:
+                    self._bot_user_id = bot_user_id
+            self._persist_tokens_file(token_path)
+            bot_name = next(iter(self._team_bot_user_ids.values()), self._bot_user_id or "unknown")
 
             # Register message event handler
             @self._app.event("message")
@@ -125,7 +161,11 @@ class SlackAdapter(BasePlatformAdapter):
             asyncio.create_task(self._handler.start_async())
 
             self._running = True
-            logger.info("[Slack] Connected as @%s (Socket Mode)", bot_name)
+            logger.info(
+                "[Slack] Connected as @%s (Socket Mode, %d workspace(s))",
+                bot_name,
+                max(1, len(self._team_clients)),
+            )
             return True
 
         except Exception as e:  # pragma: no cover - defensive logging
@@ -140,7 +180,47 @@ class SlackAdapter(BasePlatformAdapter):
             except Exception as e:  # pragma: no cover - defensive logging
                 logger.warning("[Slack] Error while closing Socket Mode handler: %s", e, exc_info=True)
         self._running = False
+        self._handler = None
+        self._app = None
+        self._team_clients.clear()
+        self._team_bot_user_ids.clear()
+        self._team_tokens.clear()
+        self._channel_team.clear()
         logger.info("[Slack] Disconnected")
+
+    def _persist_tokens_file(self, token_path: Path) -> None:
+        token_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            team_id: {
+                "token": token,
+                "bot_user_id": self._team_bot_user_ids.get(team_id),
+            }
+            for team_id, token in sorted(self._team_tokens.items())
+        }
+        atomic_write_json(token_path, payload, indent=2, sort_keys=True, chmod=0o600)
+
+    def _split_chat_id(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> tuple[str, str | None]:
+        metadata = metadata or {}
+        team_id = str(metadata.get("team_id", "") or "").strip() or None
+        if ":" in chat_id:
+            maybe_team, channel_id = chat_id.split(":", 1)
+            if maybe_team.startswith("T") and channel_id:
+                return channel_id, team_id or maybe_team
+        return chat_id, team_id or self._channel_team.get(chat_id)
+
+    def _get_client(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> AsyncWebClient:
+        _channel_id, team_id = self._split_chat_id(chat_id, metadata)
+        if team_id and team_id in self._team_clients:
+            return self._team_clients[team_id]
+        assert self._app is not None
+        return self._app.client
+
+    def _team_token(self, team_id: str | None) -> str:
+        if team_id and team_id in self._team_tokens:
+            return self._team_tokens[team_id]
+        if self.config.token:
+            return str(self.config.token).split(",", 1)[0].strip()
+        return ""
 
     async def send(
         self,
@@ -166,10 +246,12 @@ class SlackAdapter(BasePlatformAdapter):
             # reply_broadcast: also post thread replies to the main channel.
             # Controlled via platform config: gateway.slack.reply_broadcast
             broadcast = self.config.extra.get("reply_broadcast", False)
+            channel_id, team_id = self._split_chat_id(chat_id, metadata)
+            client = self._get_client(chat_id, metadata)
 
             for i, chunk in enumerate(chunks):
                 kwargs = {
-                    "channel": chat_id,
+                    "channel": channel_id,
                     "text": chunk,
                 }
                 if thread_ts:
@@ -178,7 +260,10 @@ class SlackAdapter(BasePlatformAdapter):
                     if broadcast and i == 0:
                         kwargs["reply_broadcast"] = True
 
-                last_result = await self._app.client.chat_postMessage(**kwargs)
+                last_result = await client.chat_postMessage(**kwargs)
+
+            if team_id:
+                self._channel_team[channel_id] = team_id
 
             return SendResult(
                 success=True,
@@ -200,8 +285,9 @@ class SlackAdapter(BasePlatformAdapter):
         if not self._app:
             return SendResult(success=False, error="Not connected")
         try:
-            await self._app.client.chat_update(
-                channel=chat_id,
+            channel_id, _team_id = self._split_chat_id(chat_id)
+            await self._get_client(chat_id).chat_update(
+                channel=channel_id,
                 ts=message_id,
                 text=content,
             )
@@ -234,8 +320,9 @@ class SlackAdapter(BasePlatformAdapter):
             return  # Can only set status in a thread context
 
         try:
-            await self._app.client.assistant_threads_setStatus(
-                channel_id=chat_id,
+            channel_id, _team_id = self._split_chat_id(chat_id, metadata)
+            await self._get_client(chat_id, metadata).assistant_threads_setStatus(
+                channel_id=channel_id,
                 thread_ts=thread_ts,
                 status="is thinking...",
             )
@@ -276,8 +363,9 @@ class SlackAdapter(BasePlatformAdapter):
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        result = await self._app.client.files_upload_v2(
-            channel=chat_id,
+        channel_id, _team_id = self._split_chat_id(chat_id, metadata)
+        result = await self._get_client(chat_id, metadata).files_upload_v2(
+            channel=channel_id,
             file=file_path,
             filename=os.path.basename(file_path),
             initial_comment=caption or "",
@@ -372,15 +460,18 @@ class SlackAdapter(BasePlatformAdapter):
     # ----- Reactions -----
 
     async def _add_reaction(
-        self, channel: str, timestamp: str, emoji: str
+        self,
+        chat_id: str,
+        timestamp: str,
+        emoji: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Add an emoji reaction to a message. Returns True on success."""
         if not self._app:
             return False
         try:
-            await self._app.client.reactions_add(
-                channel=channel, timestamp=timestamp, name=emoji
-            )
+            channel_id, _team_id = self._split_chat_id(chat_id, metadata)
+            await self._get_client(chat_id, metadata).reactions_add(channel=channel_id, timestamp=timestamp, name=emoji)
             return True
         except Exception as e:
             # Don't log as error — may fail if already reacted or missing scope
@@ -388,14 +479,21 @@ class SlackAdapter(BasePlatformAdapter):
             return False
 
     async def _remove_reaction(
-        self, channel: str, timestamp: str, emoji: str
+        self,
+        chat_id: str,
+        timestamp: str,
+        emoji: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Remove an emoji reaction from a message. Returns True on success."""
         if not self._app:
             return False
         try:
-            await self._app.client.reactions_remove(
-                channel=channel, timestamp=timestamp, name=emoji
+            channel_id, _team_id = self._split_chat_id(chat_id, metadata)
+            await self._get_client(chat_id, metadata).reactions_remove(
+                channel=channel_id,
+                timestamp=timestamp,
+                name=emoji,
             )
             return True
         except Exception as e:
@@ -404,18 +502,23 @@ class SlackAdapter(BasePlatformAdapter):
 
     # ----- User identity resolution -----
 
-    async def _resolve_user_name(self, user_id: str) -> str:
+    async def _resolve_user_name(self, user_id: str, *, team_id: str | None = None) -> str:
         """Resolve a Slack user ID to a display name, with caching."""
         if not user_id:
             return ""
-        if user_id in self._user_name_cache:
-            return self._user_name_cache[user_id]
+        cache_key = f"{team_id}:{user_id}" if team_id else user_id
+        if cache_key in self._user_name_cache:
+            return self._user_name_cache[cache_key]
 
         if not self._app:
             return user_id
 
         try:
-            result = await self._app.client.users_info(user=user_id)
+            if team_id and team_id in self._team_clients:
+                client = self._team_clients[team_id]
+            else:
+                client = self._app.client
+            result = await client.users_info(user=user_id)
             user = result.get("user", {})
             # Prefer display_name → real_name → user_id
             profile = user.get("profile", {})
@@ -426,11 +529,11 @@ class SlackAdapter(BasePlatformAdapter):
                 or user.get("name")
                 or user_id
             )
-            self._user_name_cache[user_id] = name
+            self._user_name_cache[cache_key] = name
             return name
         except Exception as e:
             logger.debug("[Slack] users.info failed for %s: %s", user_id, e)
-            self._user_name_cache[user_id] = user_id
+            self._user_name_cache[cache_key] = user_id
             return user_id
 
     async def send_image_file(
@@ -479,8 +582,9 @@ class SlackAdapter(BasePlatformAdapter):
                 response = await client.get(image_url)
                 response.raise_for_status()
 
-            result = await self._app.client.files_upload_v2(
-                channel=chat_id,
+            channel_id, _team_id = self._split_chat_id(chat_id, metadata)
+            result = await self._get_client(chat_id, metadata).files_upload_v2(
+                channel=channel_id,
                 content=response.content,
                 filename="image.png",
                 initial_comment=caption or "",
@@ -539,8 +643,9 @@ class SlackAdapter(BasePlatformAdapter):
             return SendResult(success=False, error=f"Video file not found: {video_path}")
 
         try:
-            result = await self._app.client.files_upload_v2(
-                channel=chat_id,
+            channel_id, _team_id = self._split_chat_id(chat_id, metadata)
+            result = await self._get_client(chat_id, metadata).files_upload_v2(
+                channel=channel_id,
                 file=video_path,
                 filename=os.path.basename(video_path),
                 initial_comment=caption or "",
@@ -580,8 +685,9 @@ class SlackAdapter(BasePlatformAdapter):
         display_name = file_name or os.path.basename(file_path)
 
         try:
-            result = await self._app.client.files_upload_v2(
-                channel=chat_id,
+            channel_id, _team_id = self._split_chat_id(chat_id, metadata)
+            result = await self._get_client(chat_id, metadata).files_upload_v2(
+                channel=channel_id,
                 file=file_path,
                 filename=display_name,
                 initial_comment=caption or "",
@@ -608,11 +714,12 @@ class SlackAdapter(BasePlatformAdapter):
             return {"name": chat_id, "type": "unknown"}
 
         try:
-            result = await self._app.client.conversations_info(channel=chat_id)
+            channel_id, _team_id = self._split_chat_id(chat_id)
+            result = await self._get_client(chat_id).conversations_info(channel=channel_id)
             channel = result.get("channel", {})
             is_dm = channel.get("is_im", False)
             return {
-                "name": channel.get("name", chat_id),
+                "name": channel.get("name", channel_id),
                 "type": "dm" if is_dm else "group",
             }
         except Exception as e:  # pragma: no cover - defensive logging
@@ -640,7 +747,10 @@ class SlackAdapter(BasePlatformAdapter):
         text = event.get("text", "")
         user_id = event.get("user", "")
         channel_id = event.get("channel", "")
+        team_id = str(event.get("team", "") or event.get("team_id", "") or "").strip() or None
         ts = event.get("ts", "")
+        if team_id:
+            self._channel_team[channel_id] = team_id
 
         # Determine if this is a DM or channel message
         channel_type = event.get("channel_type", "")
@@ -657,11 +767,12 @@ class SlackAdapter(BasePlatformAdapter):
             thread_ts = event.get("thread_ts") or ts  # ts fallback for channels
 
         # In channels, only respond if bot is mentioned
-        if not is_dm and self._bot_user_id:
-            if f"<@{self._bot_user_id}>" not in text:
+        current_bot_user_id = self._team_bot_user_ids.get(team_id or "", self._bot_user_id)
+        if not is_dm and current_bot_user_id:
+            if f"<@{current_bot_user_id}>" not in text:
                 return
             # Strip the bot mention from the text
-            text = text.replace(f"<@{self._bot_user_id}>", "").strip()
+            text = text.replace(f"<@{current_bot_user_id}>", "").strip()
 
         # Determine message type
         msg_type = MessageType.TEXT
@@ -681,7 +792,7 @@ class SlackAdapter(BasePlatformAdapter):
                     if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
                         ext = ".jpg"
                     # Slack private URLs require the bot token as auth header
-                    cached = await self._download_slack_file(url, ext)
+                    cached = await self._download_slack_file(url, ext, team_id=team_id)
                     media_urls.append(cached)
                     media_types.append(mimetype)
                     msg_type = MessageType.PHOTO
@@ -692,7 +803,7 @@ class SlackAdapter(BasePlatformAdapter):
                     ext = "." + mimetype.split("/")[-1].split(";")[0]
                     if ext not in (".ogg", ".mp3", ".wav", ".webm", ".m4a"):
                         ext = ".ogg"
-                    cached = await self._download_slack_file(url, ext, audio=True)
+                    cached = await self._download_slack_file(url, ext, audio=True, team_id=team_id)
                     media_urls.append(cached)
                     media_types.append(mimetype)
                     msg_type = MessageType.VOICE
@@ -723,7 +834,7 @@ class SlackAdapter(BasePlatformAdapter):
                         continue
 
                     # Download and cache
-                    raw_bytes = await self._download_slack_file_bytes(url)
+                    raw_bytes = await self._download_slack_file_bytes(url, team_id=team_id)
                     cached_path = cache_document_from_bytes(
                         raw_bytes, original_filename or f"document{ext}"
                     )
@@ -752,11 +863,11 @@ class SlackAdapter(BasePlatformAdapter):
                     logger.warning("[Slack] Failed to cache document from %s: %s", url, e, exc_info=True)
 
         # Resolve user display name (cached after first lookup)
-        user_name = await self._resolve_user_name(user_id)
+        user_name = await self._resolve_user_name(user_id, team_id=team_id)
 
         # Build source
         source = self.build_source(
-            chat_id=channel_id,
+            chat_id=f"{team_id}:{channel_id}" if team_id else channel_id,
             chat_name=channel_id,  # Will be resolved later if needed
             chat_type="dm" if is_dm else "group",
             user_id=user_id,
@@ -776,19 +887,24 @@ class SlackAdapter(BasePlatformAdapter):
         )
 
         # Add 👀 reaction to acknowledge receipt
-        await self._add_reaction(channel_id, ts, "eyes")
+        chat_key = f"{team_id}:{channel_id}" if team_id else channel_id
+        reaction_metadata = {"team_id": team_id} if team_id else None
+        await self._add_reaction(chat_key, ts, "eyes", reaction_metadata)
 
         await self.handle_message(msg_event)
 
         # Replace 👀 with ✅ when done
-        await self._remove_reaction(channel_id, ts, "eyes")
-        await self._add_reaction(channel_id, ts, "white_check_mark")
+        await self._remove_reaction(chat_key, ts, "eyes", reaction_metadata)
+        await self._add_reaction(chat_key, ts, "white_check_mark", reaction_metadata)
 
     async def _handle_slash_command(self, command: dict) -> None:
         """Handle /io slash command."""
         text = command.get("text", "").strip()
         user_id = command.get("user_id", "")
         channel_id = command.get("channel_id", "")
+        team_id = str(command.get("team_id", "") or "").strip() or None
+        if team_id:
+            self._channel_team[channel_id] = team_id
 
         # Map subcommands to gateway commands — derived from central registry.
         # Also keep "compact" as a Slack-specific alias for /compress.
@@ -806,7 +922,7 @@ class SlackAdapter(BasePlatformAdapter):
             text = "/help"
 
         source = self.build_source(
-            chat_id=channel_id,
+            chat_id=f"{team_id}:{channel_id}" if team_id else channel_id,
             chat_type="dm",  # Slash commands are always in DM-like context
             user_id=user_id,
         )
@@ -820,15 +936,21 @@ class SlackAdapter(BasePlatformAdapter):
 
         await self.handle_message(event)
 
-    async def _download_slack_file(self, url: str, ext: str, audio: bool = False) -> str:
+    async def _download_slack_file(
+        self,
+        url: str,
+        ext: str,
+        audio: bool = False,
+        *,
+        team_id: str | None = None,
+    ) -> str:
         """Download a Slack file using the bot token for auth."""
         import httpx
 
-        bot_token = self.config.token
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(
                 url,
-                headers={"Authorization": f"Bearer {bot_token}"},
+                headers={"Authorization": f"Bearer {self._team_token(team_id)}"},
             )
             response.raise_for_status()
 
@@ -839,15 +961,14 @@ class SlackAdapter(BasePlatformAdapter):
             from .base import cache_image_from_bytes
             return cache_image_from_bytes(response.content, ext)
 
-    async def _download_slack_file_bytes(self, url: str) -> bytes:
+    async def _download_slack_file_bytes(self, url: str, *, team_id: str | None = None) -> bytes:
         """Download a Slack file and return raw bytes."""
         import httpx
 
-        bot_token = self.config.token
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(
                 url,
-                headers={"Authorization": f"Bearer {bot_token}"},
+                headers={"Authorization": f"Bearer {self._team_token(team_id)}"},
             )
             response.raise_for_status()
         return response.content

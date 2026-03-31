@@ -18,9 +18,10 @@ from .config import ensure_io_home, load_config, load_env, save_config
 from .cron import CronManager
 from .nudge_job import maybe_run_periodic_nudge
 from .gateway import GatewayManager
+from .gateway_control import GatewayControlService, format_gateway_control_output
 from .models import apply_user_model_selection_to_config
 from .gateway_delivery import DeliveryRouter
-from .gateway_models import GatewayConfig, HomeChannel, Platform, PlatformConfig
+from .gateway_models import GatewayConfig, Platform
 from .gateway_platforms import (
     APIServerAdapter,
     BasePlatformAdapter,
@@ -49,6 +50,7 @@ from .agent.skill_commands import build_skill_invocation_message
 from .main import run_prompt
 from .pairing import PairingStore
 from .session import SessionManager
+from .skills_hub import SkillsHubError, format_skills_hub_output, run_skills_hub_command
 from .toolsets import enabled_toolsets_for_platform
 from .tool_trace import format_tool_trace_lines, should_trace_tool
 
@@ -93,6 +95,7 @@ class GatewayRunner:
         self.adapters: dict[Platform, BasePlatformAdapter] = {}
         self.delivery_router: DeliveryRouter | None = None
         self.gateway_config: GatewayConfig | None = None
+        self.control_service = GatewayControlService(home=self.home)
         self._next_cron_tick_at: float | None = None
         self._active_sessions: set[str] = set()
         self.pairing_store = PairingStore(home=self.home)
@@ -675,31 +678,39 @@ class GatewayRunner:
             return True
 
         if canonical == "new":
-            new_context = self.manager.build_session_context(source, force_new=True)
+            payload = await self.control_service.conversation_control(
+                action="new",
+                session_id=context.session_id if context else None,
+                platform=source.platform.value,
+                chat_id=source.chat_id,
+                chat_type=source.chat_type,
+                chat_name=source.chat_name,
+                user_id=source.user_id,
+                user_name=source.user_name,
+                thread_id=source.thread_id,
+            )
             await self._send_platform_message(
                 source.platform,
                 source.chat_id,
-                f"Started a new session for this chat.\nSession ID: {new_context.session_id}",
+                format_gateway_control_output(payload),
                 thread_id=source.thread_id,
             )
             return True
 
         if canonical == "sethome":
-            gateway_config = self.manager.load_config()
-            platform_config = gateway_config.platforms.get(source.platform) or PlatformConfig(enabled=True)
-            platform_config.enabled = True
-            platform_config.home_channel = HomeChannel(
-                platform=source.platform,
+            payload = self.control_service.channel_set_home(
+                session_id=context.session_id if context else None,
+                platform=source.platform.value,
                 chat_id=source.chat_id,
                 name=source.chat_name or "Home",
             )
-            gateway_config.platforms[source.platform] = platform_config
-            self.manager.save_config(gateway_config)
-            self.gateway_config = gateway_config
+            self.gateway_config = self.manager.load_config()
+            if self.delivery_router is not None and self.gateway_config is not None:
+                self.delivery_router.config = self.gateway_config
             await self._send_platform_message(
                 source.platform,
                 source.chat_id,
-                f"This chat is now the home channel for {source.platform.value}.",
+                format_gateway_control_output(payload),
                 thread_id=source.thread_id,
             )
             return True
@@ -894,103 +905,50 @@ class GatewayRunner:
             )
             return True
 
-        if canonical in {"status", "usage"}:
-            current_context = context or self.manager.build_session_context(source, force_new=False)
-            cwd = self._resolve_gateway_cwd()
-            current_session_file = session_file or self._ensure_gateway_session_file(current_context, cwd)
-            payload = (
-                self._format_session_status(
-                    source=source,
-                    context=current_context,
-                    session_file=current_session_file,
-                )
-                if canonical == "status"
-                else self._format_usage_status(context=current_context)
-            )
-            await self._send_platform_message(
-                source.platform,
-                source.chat_id,
-                payload,
-                thread_id=source.thread_id,
-            )
-            return True
-
-        if canonical == "undo":
-            if session_file is None:
-                await self._send_platform_message(
-                    source.platform,
-                    source.chat_id,
-                    "No active session file for this chat yet.",
-                    thread_id=source.thread_id,
-                )
-                return True
-            ok, message = self._undo_last_exchange(session_file)
-            await self._send_platform_message(
-                source.platform,
-                source.chat_id,
-                message,
-                thread_id=source.thread_id,
-            )
-            return True
-
-        if canonical == "retry":
-            if session_file is None:
-                await self._send_platform_message(
-                    source.platform,
-                    source.chat_id,
-                    "No active session file for this chat yet.",
-                    thread_id=source.thread_id,
-                )
-                return True
-            prompt = self._last_user_message_content(session_file)
-            if not prompt:
-                await self._send_platform_message(
-                    source.platform,
-                    source.chat_id,
-                    "No previous user message available to retry.",
-                    thread_id=source.thread_id,
-                )
-                return True
-            await self._send_platform_message(
-                source.platform,
-                source.chat_id,
-                "Retrying the last user message...",
-                thread_id=source.thread_id,
-            )
-            runtime_config = load_config(self.home)
-            redact_pii = bool(runtime_config.get("privacy", {}).get("redact_pii", False))
-            system_prompt_suffix = build_session_context_prompt(context, redact_pii=redact_pii) if context else ""
-            toolsets = self._resolve_toolsets(source.platform)
-            env_overrides = self._build_session_env(context, session_file) if context else {}
-            cwd = self._resolve_gateway_cwd()
+        if canonical == "skills":
             try:
-                result = await run_prompt(
-                    prompt,
-                    cwd=cwd,
-                    home=self.home,
-                    session_path=session_file,
-                    toolsets=toolsets,
-                    system_prompt_suffix=system_prompt_suffix,
-                    env_overrides=env_overrides,
-                )
-                if context is not None:
-                    self._record_session_usage(context, result=result)
-                response = result.text.strip() or "(no response)"
+                payload = run_skills_hub_command(arguments, home=self.home, cwd=self._resolve_gateway_cwd())
+            except SkillsHubError as exc:
+                payload = {"success": False, "error": str(exc)}
+            response = (
+                str(payload.get("message"))
+                if payload.get("success") and payload.get("message")
+                else format_skills_hub_output(payload)
+            )
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                response,
+                thread_id=source.thread_id,
+            )
+            return True
+
+        if canonical in {"status", "usage", "undo", "retry"}:
+            if canonical in {"undo", "retry"} and session_file is None:
                 await self._send_platform_message(
                     source.platform,
                     source.chat_id,
-                    response,
-                    thread_id=source.thread_id,
-                    metadata={"session_path": str(result.session_path)},
-                )
-            except Exception as exc:
-                logger.exception("Gateway retry handling failed")
-                await self._send_platform_message(
-                    source.platform,
-                    source.chat_id,
-                    f"IO hit an error while retrying that message:\n{exc}",
+                    "No active session file for this chat yet.",
                     thread_id=source.thread_id,
                 )
+                return True
+            payload = await self.control_service.conversation_control(
+                action=canonical,
+                session_id=context.session_id if context else None,
+                platform=source.platform.value,
+                chat_id=source.chat_id,
+                chat_type=source.chat_type,
+                chat_name=source.chat_name,
+                user_id=source.user_id,
+                user_name=source.user_name,
+                thread_id=source.thread_id,
+            )
+            await self._send_platform_message(
+                source.platform,
+                source.chat_id,
+                format_gateway_control_output(payload),
+                thread_id=source.thread_id,
+            )
             return True
 
         if raw_name in GATEWAY_KNOWN_COMMANDS:

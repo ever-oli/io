@@ -42,11 +42,12 @@ logger = logging.getLogger(__name__)
 # but clients render poorly above this).
 MAX_MESSAGE_LENGTH = 4000
 
-# Store directory for E2EE keys and sync state.
-_STORE_DIR = get_io_home() / "matrix" / "store"
-
 # Grace period: ignore messages older than this many seconds before startup.
 _STARTUP_GRACE_SECONDS = 5
+
+
+def _store_dir() -> Path:
+    return get_io_home() / "matrix" / "store"
 
 
 def check_matrix_requirements() -> bool:
@@ -119,8 +120,9 @@ class MatrixAdapter(BasePlatformAdapter):
             return False
 
         # Determine store path and ensure it exists.
-        store_path = str(_STORE_DIR)
-        _STORE_DIR.mkdir(parents=True, exist_ok=True)
+        store_dir = _store_dir()
+        store_path = str(store_dir)
+        store_dir.mkdir(parents=True, exist_ok=True)
 
         # Create the client.
         if self._encryption:

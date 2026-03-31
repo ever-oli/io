@@ -34,4 +34,3 @@ def test_gateway_adapters_construct_with_platform_config() -> None:
         assert isinstance(adapter, BasePlatformAdapter)
         assert adapter.platform == platform
         assert adapter.running is False
-

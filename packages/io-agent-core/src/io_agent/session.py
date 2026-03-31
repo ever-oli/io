@@ -127,14 +127,23 @@ class SessionDB:
             )
             connection.commit()
 
-    def start_session(self, session_id: str, *, source: str, cwd: str, model: str, title: str = "") -> None:
+    def start_session(
+        self,
+        session_id: str,
+        *,
+        source: str,
+        cwd: str,
+        model: str,
+        title: str = "",
+        model_config: dict[str, Any] | None = None,
+    ) -> None:
         self.create_session(
             session_id=session_id,
             source=source,
             cwd=cwd,
             model=model,
             title=title,
-            model_config={"cwd": cwd},
+            model_config=model_config or {"cwd": cwd},
         )
 
     def end_session(self, session_id: str, reason: str = "completed") -> None:

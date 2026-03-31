@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .config import ensure_io_home
+from .config import atomic_write_text, ensure_io_home
 
 
 def _entry_id() -> str:
@@ -98,7 +98,7 @@ class SessionManager:
 
     def _write_header(self) -> None:
         self.session_file.parent.mkdir(parents=True, exist_ok=True)
-        self.session_file.write_text(json.dumps(self.header, sort_keys=True) + "\n", encoding="utf-8")
+        atomic_write_text(self.session_file, json.dumps(self.header, sort_keys=True) + "\n", chmod=0o600)
 
     def _append(self, entry: dict[str, Any]) -> str:
         if not self.session_file.exists():
