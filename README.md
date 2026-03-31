@@ -8,9 +8,11 @@ IO is a clean-room Python rewrite combining the best of [pi-mono](https://github
 
 ## Version
 
-Current: `0.1.2` (2026-03-31) — Complete 7-package structure with Telegram bot, gateway surfaces, and Hermes-style parity.
+Current: `0.2.0` (2026-03-31) — Gotenks fusion complete! 8 packages with io-swarm (Gauss-style workflow orchestration).
 
 ## Packages
+
+### Core 7 (pi-mono Architecture)
 
 | Package | Purpose |
 |---------|---------|
@@ -20,7 +22,13 @@ Current: `0.1.2` (2026-03-31) — Complete 7-package structure with Telegram bot
 | `io-tui` | Terminal UI components (prompt_toolkit, Rich) |
 | `io-web-ui` | FastAPI web runtime and browser chat |
 | `io-pods` | Local pod lifecycle and vLLM management |
-| `io-bot` | **NEW** — Telegram bot, morning briefings, notifications |
+| `io-bot` | Telegram bot, morning briefings, notifications |
+
+### Extension (Gauss-Inspired)
+
+| Package | Purpose |
+|---------|---------|
+| `io-swarm` | **NEW** — Workflow swarm management, Lean formalization, background agents |
 
 ## Quick Start
 
@@ -104,6 +112,41 @@ Configure in `~/.config/io-bot/.env`:
 TELEGRAM_BOT_TOKEN=your_token
 TELEGRAM_CHAT_ID=your_chat_id
 ```
+
+### Workflow Swarm (io-swarm)
+
+Background agent orchestration for Lean formalization — Gotenks fusion of IO and Gauss:
+
+```bash
+# Spawn proof agent
+io swarm prove "1+1=2" --project ~/my-lean
+
+# Draft declarations
+io swarm draft "topic" --project ~/my-lean
+
+# Formalize statement
+io swarm formalize "theorem statement" --project ~/my-lean
+
+# List running agents
+io swarm list
+
+# Attach to interactive agent (Ctrl-] to detach)
+io swarm attach io-001
+
+# Cancel agent
+io swarm cancel io-001
+
+# Manage projects
+io project add my-proof ~/my-lean
+io project list
+```
+
+**Features:**
+- Background/foreground agent spawning
+- PTY attach/detach (like `screen`/`tmux`)
+- Project registry with `.gauss/project.yaml` support
+- Trajectory compression for RL training
+- Cosign release signing
 
 ### Personal SOUL
 
@@ -200,7 +243,7 @@ io gauss ...                  # Security analysis
 ### Project Structure
 
 ```
-packages/          # Runtime packages (7 total)
+packages/          # Runtime packages (8 total)
 skills/            # Bundled skills
 optional-skills/   # Optional skill content
 docs/              # Documentation
