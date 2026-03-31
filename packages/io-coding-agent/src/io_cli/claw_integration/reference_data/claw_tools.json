@@ -1,0 +1,222 @@
+[
+  {
+    "name": "BashTool",
+    "source_hint": "tools/BashTool.ts",
+    "responsibility": "Execute bash commands with safety controls"
+  },
+  {
+    "name": "FileReadTool",
+    "source_hint": "tools/FileReadTool.ts",
+    "responsibility": "Read file contents with offset and limit"
+  },
+  {
+    "name": "FileEditTool",
+    "source_hint": "tools/FileEditTool.ts",
+    "responsibility": "Edit files with exact string replacement"
+  },
+  {
+    "name": "FileWriteTool",
+    "source_hint": "tools/FileWriteTool.ts",
+    "responsibility": "Write or overwrite files"
+  },
+  {
+    "name": "GlobTool",
+    "source_hint": "tools/GlobTool.ts",
+    "responsibility": "Find files matching glob patterns"
+  },
+  {
+    "name": "GrepTool",
+    "source_hint": "tools/GrepTool.ts",
+    "responsibility": "Search file contents with regex"
+  },
+  {
+    "name": "ReadTool",
+    "source_hint": "tools/ReadTool.ts",
+    "responsibility": "Generic read operation"
+  },
+  {
+    "name": "TaskTool",
+    "source_hint": "tools/TaskTool.ts",
+    "responsibility": "Spawn subtasks and background jobs"
+  },
+  {
+    "name": "WebFetchTool",
+    "source_hint": "tools/WebFetchTool.ts",
+    "responsibility": "Fetch and parse web content"
+  },
+  {
+    "name": "LSTool",
+    "source_hint": "tools/LSTool.ts",
+    "responsibility": "List directory contents"
+  },
+  {
+    "name": "AgentTool",
+    "source_hint": "tools/AgentTool.ts",
+    "responsibility": "Delegate to specialized sub-agents"
+  },
+  {
+    "name": "ComplexityCalculator",
+    "source_hint": "tools/ComplexityCalculator.ts",
+    "responsibility": "Calculate code complexity metrics"
+  },
+  {
+    "name": "ContextWindowTracker",
+    "source_hint": "tools/ContextWindowTracker.ts",
+    "responsibility": "Monitor context window usage"
+  },
+  {
+    "name": "ConversationTreeTool",
+    "source_hint": "tools/ConversationTreeTool.ts",
+    "responsibility": "Navigate conversation branches"
+  },
+  {
+    "name": "CostTracker",
+    "source_hint": "tools/CostTracker.ts",
+    "responsibility": "Track API costs and token usage"
+  },
+  {
+    "name": "DiagnosticsTool",
+    "source_hint": "tools/DiagnosticsTool.ts",
+    "responsibility": "System diagnostics and health checks"
+  },
+  {
+    "name": "DiffViewer",
+    "source_hint": "tools/DiffViewer.ts",
+    "responsibility": "Display and manage code diffs"
+  },
+  {
+    "name": "DocumentationTool",
+    "source_hint": "tools/DocumentationTool.ts",
+    "responsibility": "Generate and manage documentation"
+  },
+  {
+    "name": "GitCommitTool",
+    "source_hint": "tools/GitCommitTool.ts",
+    "responsibility": "Create git commits"
+  },
+  {
+    "name": "GitDiffTool",
+    "source_hint": "tools/GitDiffTool.ts",
+    "responsibility": "Generate git diffs"
+  },
+  {
+    "name": "GitHubTool",
+    "source_hint": "tools/GitHubTool.ts",
+    "responsibility": "GitHub API integration"
+  },
+  {
+    "name": "HistoryTool",
+    "source_hint": "tools/HistoryTool.ts",
+    "responsibility": "Access conversation history"
+  },
+  {
+    "name": "ImageAnalyzer",
+    "source_hint": "tools/ImageAnalyzer.ts",
+    "responsibility": "Analyze and describe images"
+  },
+  {
+    "name": "LinterTool",
+    "source_hint": "tools/LinterTool.ts",
+    "responsibility": "Run code linters"
+  },
+  {
+    "name": "MCPManager",
+    "source_hint": "tools/MCPManager.ts",
+    "responsibility": "Manage MCP server connections"
+  },
+  {
+    "name": "MemoryTool",
+    "source_hint": "tools/MemoryTool.ts",
+    "responsibility": "Persistent memory operations"
+  },
+  {
+    "name": "PackageManagerTool",
+    "source_hint": "tools/PackageManagerTool.ts",
+    "responsibility": "Manage package installations"
+  },
+  {
+    "name": "PermissionManager",
+    "source_hint": "tools/PermissionManager.ts",
+    "responsibility": "Manage tool permissions"
+  },
+  {
+    "name": "PlanningTool",
+    "source_hint": "tools/PlanningTool.ts",
+    "responsibility": "Create and manage plans"
+  },
+  {
+    "name": "ProjectAnalyzer",
+    "source_hint": "tools/ProjectAnalyzer.ts",
+    "responsibility": "Analyze project structure"
+  },
+  {
+    "name": "RefactorTool",
+    "source_hint": "tools/RefactorTool.ts",
+    "responsibility": "Perform code refactoring"
+  },
+  {
+    "name": "ReviewTool",
+    "source_hint": "tools/ReviewTool.ts",
+    "responsibility": "Code review automation"
+  },
+  {
+    "name": "SearchTool",
+    "source_hint": "tools/SearchTool.ts",
+    "responsibility": "Semantic code search"
+  },
+  {
+    "name": "SecurityScanner",
+    "source_hint": "tools/SecurityScanner.ts",
+    "responsibility": "Security vulnerability scanning"
+  },
+  {
+    "name": "SessionManager",
+    "source_hint": "tools/SessionManager.ts",
+    "responsibility": "Manage sessions and persistence"
+  },
+  {
+    "name": "ShellIntegration",
+    "source_hint": "tools/ShellIntegration.ts",
+    "responsibility": "Shell environment integration"
+  },
+  {
+    "name": "Summarizer",
+    "source_hint": "tools/Summarizer.ts",
+    "responsibility": "Summarize text and conversations"
+  },
+  {
+    "name": "SyntaxChecker",
+    "source_hint": "tools/SyntaxChecker.ts",
+    "responsibility": "Check code syntax"
+  },
+  {
+    "name": "TelemetryTool",
+    "source_hint": "tools/TelemetryTool.ts",
+    "responsibility": "Usage telemetry and analytics"
+  },
+  {
+    "name": "TerminalTool",
+    "source_hint": "tools/TerminalTool.ts",
+    "responsibility": "Terminal control and interaction"
+  },
+  {
+    "name": "TestRunner",
+    "source_hint": "tools/TestRunner.ts",
+    "responsibility": "Run test suites"
+  },
+  {
+    "name": "TypeChecker",
+    "source_hint": "tools/TypeChecker.ts",
+    "responsibility": "Run type checkers"
+  },
+  {
+    "name": "VoiceTool",
+    "source_hint": "tools/VoiceTool.ts",
+    "responsibility": "Voice input/output"
+  },
+  {
+    "name": "WebSearchTool",
+    "source_hint": "tools/WebSearchTool.ts",
+    "responsibility": "Search the web"
+  }
+]

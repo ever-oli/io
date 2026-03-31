@@ -21,6 +21,9 @@ def _register_builtin_tool_modules() -> None:
         shell,
         skills,
         web,
+        plan_tools,
+        agent_tool,
+        lsp_tool,
     )
 
     try:
@@ -85,6 +88,16 @@ TOOL_METADATA: dict[str, ToolMetadata] = {
     "browser_get_images": ToolMetadata("browser_get_images", "browser", "🌐"),
     "browser_vision": ToolMetadata("browser_vision", "browser", "🌐"),
     "browser_console": ToolMetadata("browser_console", "browser", "🌐"),
+    # Claudetenks fusion tools
+    "plan_create": ToolMetadata("plan_create", "plan", "📋"),
+    "plan_get_current_step": ToolMetadata("plan_get_current_step", "plan", "📋"),
+    "plan_mark_step_complete": ToolMetadata("plan_mark_step_complete", "plan", "📋"),
+    "plan_get_status": ToolMetadata("plan_get_status", "plan", "📋"),
+    "plan_list": ToolMetadata("plan_list", "plan", "📋"),
+    "agent": ToolMetadata("agent", "agent", "🤖"),
+    "multi_agent": ToolMetadata("multi_agent", "agent", "🤖"),
+    "lsp": ToolMetadata("lsp", "lsp", "🔍"),
+    "lsp_diagnostics": ToolMetadata("lsp_diagnostics", "lsp", "🔍"),
 }
 
 # Hermes-style helper aliases -> IO canonical tool names.

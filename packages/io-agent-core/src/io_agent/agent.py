@@ -37,7 +37,9 @@ from .tools import (
 from .types import AgentRunResult
 
 
-BeforeModelCall = Callable[[list[dict[str, Any]]], Awaitable[list[dict[str, Any]]] | list[dict[str, Any]]]
+BeforeModelCall = Callable[
+    [list[dict[str, Any]]], Awaitable[list[dict[str, Any]]] | list[dict[str, Any]]
+]
 BeforeToolCall = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]] | dict[str, Any]]
 AfterToolResult = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]] | dict[str, Any]]
 
@@ -81,7 +83,9 @@ def _auth_store_for_target(target: dict[str, Any], *, home: Path, env: dict[str,
 
 
 def _retryable_runtime_error(exc: Exception) -> bool:
-    if isinstance(exc, (httpx.TimeoutException, httpx.TransportError, ConnectionError, TimeoutError, OSError)):
+    if isinstance(
+        exc, (httpx.TimeoutException, httpx.TransportError, ConnectionError, TimeoutError, OSError)
+    ):
         return True
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code == 429 or 500 <= exc.response.status_code < 600
@@ -115,6 +119,10 @@ class Agent:
     compressor: ContextCompressor = field(default_factory=ContextCompressor)
     max_iterations: int = 8
     interrupt_requested: bool = False
+    # Claudetenks fusion additions
+    smart_compressor: Any | None = None  # SmartCompressor for user-triggered compression
+    memory_store: Any | None = None  # MemoryStore for cross-session memory
+    permission_context: Any | None = None  # PermissionContext for granular controls
 
     async def run(
         self,
@@ -219,10 +227,23 @@ class Agent:
         home = home or Path.home()
         env = env or {}
         messages = list(history or [])
+
+        # Inject relevant memories into context (Claudetenks fusion)
+        if self.memory_store is not None:
+            try:
+                memory_context = self.memory_store.get_context_for_prompt(prompt, max_memories=3)
+                if memory_context:
+                    # Add as system message before user prompt
+                    messages.append({"role": "system", "content": memory_context})
+            except Exception:
+                pass  # Don't fail if memory store has issues
+
         messages.append({"role": "user", "content": prompt})
         yield AgentStartEvent(payload={"prompt": prompt, "model": model})
         self.interrupt_requested = False
-        targets = _normalize_runtime_targets(runtime_targets, model=model, provider=provider, base_url=base_url)
+        targets = _normalize_runtime_targets(
+            runtime_targets, model=model, provider=provider, base_url=base_url
+        )
         active_runtime_target = dict(targets[0])
         runtime_attempts: list[dict[str, Any]] = []
 
@@ -236,16 +257,37 @@ class Agent:
             last_iteration = iteration
             if self.interrupt_requested:
                 break
+            # Automatic compression (standard IO behavior)
             if self.compressor.should_compress(messages):
                 compressed = self.compressor.compress(messages)
                 if compressed:
                     messages, summary = compressed
                     yield CompactionEvent(payload={"summary": summary})
 
+            # Smart compression (Claudetenks fusion) - user-triggered or more intelligent
+            if self.smart_compressor is not None and self.smart_compressor.should_compress(
+                messages, force=False
+            ):
+                result = self.smart_compressor.compress(
+                    messages, force=False, model=active_runtime_target.get("model")
+                )
+                if result:
+                    messages = result.compressed_messages
+                    yield CompactionEvent(
+                        payload={
+                            "summary": result.summary,
+                            "tokens_saved": result.tokens_saved,
+                            "messages_removed": result.messages_removed,
+                            "key_points": result.key_points,
+                        }
+                    )
+
             prepared_messages = messages
             if before_model_call:
                 maybe_messages = before_model_call(list(messages))
-                prepared_messages = await maybe_messages if hasattr(maybe_messages, "__await__") else maybe_messages
+                prepared_messages = (
+                    await maybe_messages if hasattr(maybe_messages, "__await__") else maybe_messages
+                )
 
             yield TurnStartEvent(payload={"iteration": iteration})
 
@@ -267,7 +309,9 @@ class Agent:
                     et = event.type
                     if et == "message_delta" and getattr(event, "text", ""):
                         response_content += event.text
-                        yield MessageDeltaEvent(payload={"delta": event.text, "iteration": iteration})
+                        yield MessageDeltaEvent(
+                            payload={"delta": event.text, "iteration": iteration}
+                        )
                     elif et == "tool_call" and event.tool_call is not None:
                         response_tool_calls.append(event.tool_call)
                     elif et == "message_end" and event.response is not None:
@@ -298,18 +342,24 @@ class Agent:
                 runtime_attempts = []
                 yield AgentEvent(
                     type="runtime_route",
-                    payload={"target": dict(active_runtime_target), "attempts": list(runtime_attempts)},
+                    payload={
+                        "target": dict(active_runtime_target),
+                        "attempts": list(runtime_attempts),
+                    },
                 )
                 assistant_message = {
                     "role": "assistant",
                     "content": response_content,
                     "tool_calls": [
-                        {"id": call.id, "name": call.name, "arguments": call.arguments} for call in normalized_calls
+                        {"id": call.id, "name": call.name, "arguments": call.arguments}
+                        for call in normalized_calls
                     ],
                 }
                 messages.append(assistant_message)
                 if response_content:
-                    yield MessageEvent(payload={"content": response_content, "iteration": iteration})
+                    yield MessageEvent(
+                        payload={"content": response_content, "iteration": iteration}
+                    )
                 if not normalized_calls:
                     break
                 tool_calls_iterable = normalized_calls
@@ -349,7 +399,10 @@ class Agent:
                     raise RuntimeError("No runtime target succeeded.")
                 yield AgentEvent(
                     type="runtime_route",
-                    payload={"target": dict(active_runtime_target), "attempts": list(runtime_attempts)},
+                    payload={
+                        "target": dict(active_runtime_target),
+                        "attempts": list(runtime_attempts),
+                    },
                 )
                 usage = response.usage
                 assistant_message = {
@@ -362,7 +415,9 @@ class Agent:
                 }
                 messages.append(assistant_message)
                 if response.content:
-                    yield MessageEvent(payload={"content": response.content, "iteration": iteration})
+                    yield MessageEvent(
+                        payload={"content": response.content, "iteration": iteration}
+                    )
 
                 if not response.tool_calls:
                     break
@@ -375,11 +430,24 @@ class Agent:
                     decision = before_tool_call(tool_call.name, arguments)
                     resolved = await decision if hasattr(decision, "__await__") else decision
                     if resolved.get("block"):
-                        tool_result = {"role": "tool", "name": tool_call.name, "tool_call_id": tool_call.id, "content": resolved.get("reason", "blocked")}
+                        tool_result = {
+                            "role": "tool",
+                            "name": tool_call.name,
+                            "tool_call_id": tool_call.id,
+                            "content": resolved.get("reason", "blocked"),
+                        }
                         messages.append(tool_result)
                         yield ToolCallEndEvent(
                             payload={"tool": tool_call.name, "blocked": True},
-                            result=type("Result", (), {"content": tool_result["content"], "is_error": True, "metadata": {}})(),
+                            result=type(
+                                "Result",
+                                (),
+                                {
+                                    "content": tool_result["content"],
+                                    "is_error": True,
+                                    "metadata": {},
+                                },
+                            )(),
                         )
                         continue
                     arguments = resolved.get("arguments", arguments)
@@ -399,6 +467,7 @@ class Agent:
                 approval_callback=approval_callback,
                 tool_output_callback=tool_output_callback,
                 metadata=meta,
+                permission_context=self.permission_context,  # Claudetenks fusion
             )
             results = await execute_tool_batch(batch, context=context)
             for call_id, result in results:
@@ -413,7 +482,9 @@ class Agent:
                     patch = after_tool_result(tool_name, payload)
                     payload = await patch if hasattr(patch, "__await__") else patch
                 messages.append(payload)
-                yield ToolCallEndEvent(payload={"tool": tool_name, "content": payload["content"]}, result=result)
+                yield ToolCallEndEvent(
+                    payload={"tool": tool_name, "content": payload["content"]}, result=result
+                )
 
         yield AgentEndEvent(
             payload={

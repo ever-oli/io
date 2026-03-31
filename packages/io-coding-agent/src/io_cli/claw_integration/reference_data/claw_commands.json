@@ -1,0 +1,382 @@
+[
+  {
+    "name": "add-dir",
+    "source_hint": "commands/add-dir",
+    "responsibility": "Add directories to the project context"
+  },
+  {
+    "name": "advisor",
+    "source_hint": "commands/advisor.ts",
+    "responsibility": "Get AI advice on code or project decisions"
+  },
+  {
+    "name": "agents",
+    "source_hint": "commands/agents",
+    "responsibility": "Manage AI agent instances and configurations"
+  },
+  {
+    "name": "branch",
+    "source_hint": "commands/branch",
+    "responsibility": "Git branch operations (create, switch, list, delete)"
+  },
+  {
+    "name": "bridge",
+    "source_hint": "commands/bridge",
+    "responsibility": "Bridge connections to external services or runtimes"
+  },
+  {
+    "name": "brief",
+    "source_hint": "commands/brief.ts",
+    "responsibility": "Generate a summary brief of the current context"
+  },
+  {
+    "name": "btw",
+    "source_hint": "commands/btw",
+    "responsibility": "By the way - capture tangential thoughts"
+  },
+  {
+    "name": "chrome",
+    "source_hint": "commands/chrome",
+    "responsibility": "Control Chrome browser via CDP"
+  },
+  {
+    "name": "clear",
+    "source_hint": "commands/clear",
+    "responsibility": "Clear conversation or caches"
+  },
+  {
+    "name": "commit",
+    "source_hint": "commands/commit.ts",
+    "responsibility": "Create git commits with AI-generated messages"
+  },
+  {
+    "name": "commit-push-pr",
+    "source_hint": "commands/commit-push-pr.ts",
+    "responsibility": "Full workflow: commit, push, and create PR"
+  },
+  {
+    "name": "compact",
+    "source_hint": "commands/compact",
+    "responsibility": "Compact conversation history to save tokens"
+  },
+  {
+    "name": "config",
+    "source_hint": "commands/config",
+    "responsibility": "Manage Claude Code configuration"
+  },
+  {
+    "name": "context",
+    "source_hint": "commands/context",
+    "responsibility": "View and manage conversation context"
+  },
+  {
+    "name": "copy",
+    "source_hint": "commands/copy",
+    "responsibility": "Copy content to clipboard"
+  },
+  {
+    "name": "cost",
+    "source_hint": "commands/cost",
+    "responsibility": "Track and display API usage costs"
+  },
+  {
+    "name": "desktop",
+    "source_hint": "commands/desktop",
+    "responsibility": "Control desktop environment"
+  },
+  {
+    "name": "diff",
+    "source_hint": "commands/diff",
+    "responsibility": "Show diffs of changes"
+  },
+  {
+    "name": "doctor",
+    "source_hint": "commands/doctor",
+    "responsibility": "Diagnose system and configuration issues"
+  },
+  {
+    "name": "effort",
+    "source_hint": "commands/effort",
+    "responsibility": "Set reasoning effort level"
+  },
+  {
+    "name": "exit",
+    "source_hint": "commands/exit",
+    "responsibility": "Exit the application"
+  },
+  {
+    "name": "export",
+    "source_hint": "commands/export",
+    "responsibility": "Export conversation or session"
+  },
+  {
+    "name": "fast",
+    "source_hint": "commands/fast",
+    "responsibility": "Toggle fast mode (less reasoning)"
+  },
+  {
+    "name": "feedback",
+    "source_hint": "commands/feedback",
+    "responsibility": "Send feedback to developers"
+  },
+  {
+    "name": "files",
+    "source_hint": "commands/files",
+    "responsibility": "Manage files in context"
+  },
+  {
+    "name": "help",
+    "source_hint": "commands/help",
+    "responsibility": "Show help information"
+  },
+  {
+    "name": "hooks",
+    "source_hint": "commands/hooks",
+    "responsibility": "Manage git hooks"
+  },
+  {
+    "name": "ide",
+    "source_hint": "commands/ide",
+    "responsibility": "IDE integration and control"
+  },
+  {
+    "name": "init",
+    "source_hint": "commands/init.ts",
+    "responsibility": "Initialize Claude Code in a project"
+  },
+  {
+    "name": "insights",
+    "source_hint": "commands/insights.ts",
+    "responsibility": "Get project insights and analysis"
+  },
+  {
+    "name": "install",
+    "source_hint": "commands/install.tsx",
+    "responsibility": "Install Claude Code"
+  },
+  {
+    "name": "keybindings",
+    "source_hint": "commands/keybindings",
+    "responsibility": "Manage keyboard shortcuts"
+  },
+  {
+    "name": "login",
+    "source_hint": "commands/login",
+    "responsibility": "Authenticate with services"
+  },
+  {
+    "name": "logout",
+    "source_hint": "commands/logout",
+    "responsibility": "Sign out from services"
+  },
+  {
+    "name": "mcp",
+    "source_hint": "commands/mcp",
+    "responsibility": "Manage MCP (Model Context Protocol) servers"
+  },
+  {
+    "name": "memory",
+    "source_hint": "commands/memory",
+    "responsibility": "Manage persistent memory"
+  },
+  {
+    "name": "mobile",
+    "source_hint": "commands/mobile",
+    "responsibility": "Mobile device integration"
+  },
+  {
+    "name": "model",
+    "source_hint": "commands/model",
+    "responsibility": "Switch between AI models"
+  },
+  {
+    "name": "onboarding",
+    "source_hint": "commands/onboarding",
+    "responsibility": "Guide new users through setup"
+  },
+  {
+    "name": "output-style",
+    "source_hint": "commands/output-style",
+    "responsibility": "Change output formatting style"
+  },
+  {
+    "name": "passes",
+    "source_hint": "commands/passes",
+    "responsibility": "Manage analysis passes"
+  },
+  {
+    "name": "permissions",
+    "source_hint": "commands/permissions",
+    "responsibility": "Manage tool permissions"
+  },
+  {
+    "name": "plan",
+    "source_hint": "commands/plan",
+    "responsibility": "Create and manage project plans"
+  },
+  {
+    "name": "plugin",
+    "source_hint": "commands/plugin",
+    "responsibility": "Manage plugins and extensions"
+  },
+  {
+    "name": "pr",
+    "source_hint": "commands/pr_comments",
+    "responsibility": "Work with pull request comments"
+  },
+  {
+    "name": "privacy-settings",
+    "source_hint": "commands/privacy-settings",
+    "responsibility": "Configure privacy options"
+  },
+  {
+    "name": "rate-limit-options",
+    "source_hint": "commands/rate-limit-options",
+    "responsibility": "Configure rate limiting"
+  },
+  {
+    "name": "release-notes",
+    "source_hint": "commands/release-notes",
+    "responsibility": "View version release notes"
+  },
+  {
+    "name": "reload-plugins",
+    "source_hint": "commands/reload-plugins",
+    "responsibility": "Reload plugin modules"
+  },
+  {
+    "name": "remote-env",
+    "source_hint": "commands/remote-env",
+    "responsibility": "Manage remote environments"
+  },
+  {
+    "name": "remote-setup",
+    "source_hint": "commands/remote-setup",
+    "responsibility": "Configure remote development"
+  },
+  {
+    "name": "rename",
+    "source_hint": "commands/rename",
+    "responsibility": "Rename sessions"
+  },
+  {
+    "name": "resume",
+    "source_hint": "commands/resume",
+    "responsibility": "Resume previous sessions"
+  },
+  {
+    "name": "review",
+    "source_hint": "commands/review",
+    "responsibility": "Code review commands"
+  },
+  {
+    "name": "rewind",
+    "source_hint": "commands/rewind",
+    "responsibility": "Undo multiple changes"
+  },
+  {
+    "name": "sandbox-toggle",
+    "source_hint": "commands/sandbox-toggle",
+    "responsibility": "Toggle sandbox mode"
+  },
+  {
+    "name": "security-review",
+    "source_hint": "commands/security-review.ts",
+    "responsibility": "Security analysis of code"
+  },
+  {
+    "name": "session",
+    "source_hint": "commands/session",
+    "responsibility": "Session management"
+  },
+  {
+    "name": "share",
+    "source_hint": "commands/share",
+    "responsibility": "Share sessions or outputs"
+  },
+  {
+    "name": "skills",
+    "source_hint": "commands/skills",
+    "responsibility": "Manage AI skills"
+  },
+  {
+    "name": "stats",
+    "source_hint": "commands/stats",
+    "responsibility": "Show usage statistics"
+  },
+  {
+    "name": "status",
+    "source_hint": "commands/status",
+    "responsibility": "Check system status"
+  },
+  {
+    "name": "stickers",
+    "source_hint": "commands/stickers",
+    "responsibility": "Manage UI stickers/decorations"
+  },
+  {
+    "name": "summary",
+    "source_hint": "commands/summary",
+    "responsibility": "Generate conversation summaries"
+  },
+  {
+    "name": "tag",
+    "source_hint": "commands/tag",
+    "responsibility": "Tag sessions or content"
+  },
+  {
+    "name": "tasks",
+    "source_hint": "commands/tasks",
+    "responsibility": "Task management"
+  },
+  {
+    "name": "teleport",
+    "source_hint": "commands/teleport",
+    "responsibility": "Quick navigation between projects"
+  },
+  {
+    "name": "terminalSetup",
+    "source_hint": "commands/terminalSetup",
+    "responsibility": "Configure terminal integration"
+  },
+  {
+    "name": "theme",
+    "source_hint": "commands/theme",
+    "responsibility": "Change color themes"
+  },
+  {
+    "name": "thinkback",
+    "source_hint": "commands/thinkback",
+    "responsibility": "Review conversation history"
+  },
+  {
+    "name": "ultraplan",
+    "source_hint": "commands/ultraplan.tsx",
+    "responsibility": "Advanced planning with dependencies"
+  },
+  {
+    "name": "upgrade",
+    "source_hint": "commands/upgrade",
+    "responsibility": "Update Claude Code"
+  },
+  {
+    "name": "usage",
+    "source_hint": "commands/usage",
+    "responsibility": "View API usage details"
+  },
+  {
+    "name": "version",
+    "source_hint": "commands/version.ts",
+    "responsibility": "Show version information"
+  },
+  {
+    "name": "vim",
+    "source_hint": "commands/vim",
+    "responsibility": "Vim integration"
+  },
+  {
+    "name": "voice",
+    "source_hint": "commands/voice",
+    "responsibility": "Voice input/output control"
+  }
+]

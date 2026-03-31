@@ -24,18 +24,19 @@ from prompt_toolkit.completion import Completer, Completion
 # CommandDef dataclass
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class CommandDef:
     """Definition of a single slash command."""
 
-    name: str                          # canonical name without slash: "background"
-    description: str                   # human-readable description
-    category: str                      # "Session", "Configuration", etc.
-    aliases: tuple[str, ...] = ()      # alternative names: ("bg",)
-    args_hint: str = ""                # argument placeholder: "<prompt>", "[name]"
+    name: str  # canonical name without slash: "background"
+    description: str  # human-readable description
+    category: str  # "Session", "Configuration", etc.
+    aliases: tuple[str, ...] = ()  # alternative names: ("bg",)
+    args_hint: str = ""  # argument placeholder: "<prompt>", "[name]"
     subcommands: tuple[str, ...] = ()  # tab-completable subcommands
-    cli_only: bool = False             # only available in CLI
-    gateway_only: bool = False         # only available in gateway/messaging
+    cli_only: bool = False  # only available in CLI
+    gateway_only: bool = False  # only available in gateway/messaging
 
 
 # ---------------------------------------------------------------------------
@@ -44,38 +45,51 @@ class CommandDef:
 
 COMMAND_REGISTRY: list[CommandDef] = [
     # Session
-    CommandDef("new", "Start a new session (fresh session ID + history)", "Session",
-               aliases=("reset",)),
-    CommandDef("clear", "Clear screen and start a new session", "Session",
-               cli_only=True),
-    CommandDef("history", "Show conversation history", "Session",
-               cli_only=True),
-    CommandDef("save", "Save the current conversation", "Session",
-               cli_only=True),
+    CommandDef(
+        "new", "Start a new session (fresh session ID + history)", "Session", aliases=("reset",)
+    ),
+    CommandDef("clear", "Clear screen and start a new session", "Session", cli_only=True),
+    CommandDef("history", "Show conversation history", "Session", cli_only=True),
+    CommandDef("save", "Save the current conversation", "Session", cli_only=True),
     CommandDef("retry", "Retry the last message (resend to agent)", "Session"),
     CommandDef("undo", "Remove the last user/assistant exchange", "Session"),
-    CommandDef("title", "Set a title for the current session", "Session",
-               args_hint="[name]"),
-    CommandDef("compress", "Manually compress conversation context", "Session"),
-    CommandDef("rollback", "List or restore filesystem checkpoints", "Session",
-               args_hint="[number]"),
+    CommandDef("title", "Set a title for the current session", "Session", args_hint="[name]"),
+    CommandDef(
+        "compact",
+        "Manually compress conversation context (Claude Code style)",
+        "Session",
+        aliases=("compress",),
+    ),
+    CommandDef(
+        "rollback", "List or restore filesystem checkpoints", "Session", args_hint="[number]"
+    ),
     CommandDef("stop", "Kill all running background processes", "Session"),
-    CommandDef("approve", "Approve a pending dangerous command", "Session",
-               gateway_only=True, args_hint="[session|always]"),
-    CommandDef("deny", "Deny a pending dangerous command", "Session",
-               gateway_only=True),
-    CommandDef("background", "Run a prompt in the background", "Session",
-               aliases=("bg",), args_hint="<prompt>"),
-    CommandDef("status", "Show session info", "Session",
-               gateway_only=True),
-    CommandDef("sethome", "Set this chat as the home channel", "Session",
-               gateway_only=True, aliases=("set-home",)),
-    CommandDef("resume", "Resume a previously-named session", "Session",
-               args_hint="[name]"),
-
+    CommandDef(
+        "approve",
+        "Approve a pending dangerous command",
+        "Session",
+        gateway_only=True,
+        args_hint="[session|always]",
+    ),
+    CommandDef("deny", "Deny a pending dangerous command", "Session", gateway_only=True),
+    CommandDef(
+        "background",
+        "Run a prompt in the background",
+        "Session",
+        aliases=("bg",),
+        args_hint="<prompt>",
+    ),
+    CommandDef("status", "Show session info", "Session", gateway_only=True),
+    CommandDef(
+        "sethome",
+        "Set this chat as the home channel",
+        "Session",
+        gateway_only=True,
+        aliases=("set-home",),
+    ),
+    CommandDef("resume", "Resume a previously-named session", "Session", args_hint="[name]"),
     # Configuration
-    CommandDef("config", "Show current configuration", "Configuration",
-               cli_only=True),
+    CommandDef("config", "Show current configuration", "Configuration", cli_only=True),
     CommandDef(
         "model",
         "REPL: fuzzy Tab dropdown when no args; else set model (provider:id or full id)",
@@ -88,17 +102,46 @@ COMMAND_REGISTRY: list[CommandDef] = [
         "Configuration",
         args_hint="[id]",
     ),
-    CommandDef("prompt", "View/set custom system prompt", "Configuration",
-               cli_only=True, args_hint="[text]", subcommands=("clear",)),
-    CommandDef("personality", "Set a predefined personality", "Configuration",
-               args_hint="[name]"),
-    CommandDef("statusbar", "Toggle the context/model status bar", "Configuration",
-               cli_only=True, aliases=("sb",)),
-    CommandDef("verbose", "Cycle tool progress display: off -> new -> all -> verbose",
-               "Configuration", cli_only=True),
-    CommandDef("reasoning", "Manage reasoning effort and display", "Configuration",
-               args_hint="[level|show|hide]",
-               subcommands=("none", "low", "minimal", "medium", "high", "xhigh", "show", "hide", "on", "off")),
+    CommandDef(
+        "prompt",
+        "View/set custom system prompt",
+        "Configuration",
+        cli_only=True,
+        args_hint="[text]",
+        subcommands=("clear",),
+    ),
+    CommandDef("personality", "Set a predefined personality", "Configuration", args_hint="[name]"),
+    CommandDef(
+        "statusbar",
+        "Toggle the context/model status bar",
+        "Configuration",
+        cli_only=True,
+        aliases=("sb",),
+    ),
+    CommandDef(
+        "verbose",
+        "Cycle tool progress display: off -> new -> all -> verbose",
+        "Configuration",
+        cli_only=True,
+    ),
+    CommandDef(
+        "reasoning",
+        "Manage reasoning effort and display",
+        "Configuration",
+        args_hint="[level|show|hide]",
+        subcommands=(
+            "none",
+            "low",
+            "minimal",
+            "medium",
+            "high",
+            "xhigh",
+            "show",
+            "hide",
+            "on",
+            "off",
+        ),
+    ),
     CommandDef(
         "model-router",
         "Show router status, recommend a route, or toggle cheap-model auto-routing",
@@ -106,32 +149,87 @@ COMMAND_REGISTRY: list[CommandDef] = [
         args_hint="[status|recommend <task>|auto on|off]",
         subcommands=("status", "recommend", "auto", "on", "off"),
     ),
-    CommandDef("skin", "Show or change the display skin/theme", "Configuration",
-               cli_only=True, args_hint="[name]"),
-    CommandDef("voice", "Toggle voice mode", "Configuration",
-               args_hint="[on|off|tts|status]", subcommands=("on", "off", "tts", "status")),
-
+    CommandDef(
+        "skin",
+        "Show or change the display skin/theme",
+        "Configuration",
+        cli_only=True,
+        args_hint="[name]",
+    ),
+    CommandDef(
+        "voice",
+        "Toggle voice mode",
+        "Configuration",
+        args_hint="[on|off|tts|status]",
+        subcommands=("on", "off", "tts", "status"),
+    ),
+    CommandDef(
+        "permissions",
+        "Manage tool permissions and approval policies",
+        "Configuration",
+        cli_only=True,
+        args_hint="[list|allow|deny|prompt] <tool-pattern>",
+        subcommands=("list", "allow", "deny", "prompt"),
+    ),
     # Tools & Skills
-    CommandDef("tools", "Manage tools: /tools [list|disable|enable] [name...]", "Tools & Skills",
-               args_hint="[list|disable|enable] [name...]", cli_only=True),
-    CommandDef("toolsets", "List available toolsets", "Tools & Skills",
-               cli_only=True),
-    CommandDef("skills", "Search, install, inspect, or manage skills",
-               "Tools & Skills",
-               subcommands=("browse", "search", "inspect", "install", "list", "uninstall", "check")),
-    CommandDef("cron", "Manage scheduled tasks", "Tools & Skills",
-               cli_only=True, args_hint="[subcommand]",
-               subcommands=("list", "add", "create", "edit", "pause", "resume", "run", "remove")),
-    CommandDef("pairing", "Manage DM pairing approvals", "Tools & Skills",
-               cli_only=True, args_hint="[list|approve|revoke|clear-pending]",
-               subcommands=("list", "approve", "revoke", "clear-pending")),
-    CommandDef("reload-mcp", "Reload MCP servers from config", "Tools & Skills",
-               aliases=("reload_mcp",)),
-    CommandDef("browser", "Connect browser tools to your live Chrome via CDP", "Tools & Skills",
-               cli_only=True, args_hint="[connect|disconnect|status]",
-               subcommands=("connect", "disconnect", "status")),
-    CommandDef("plugins", "List installed plugins and their status",
-               "Tools & Skills", cli_only=True),
+    CommandDef(
+        "tools",
+        "Manage tools: /tools [list|disable|enable] [name...]",
+        "Tools & Skills",
+        args_hint="[list|disable|enable] [name...]",
+        cli_only=True,
+    ),
+    CommandDef("toolsets", "List available toolsets", "Tools & Skills", cli_only=True),
+    CommandDef(
+        "skills",
+        "Search, install, inspect, or manage skills",
+        "Tools & Skills",
+        subcommands=("browse", "search", "inspect", "install", "list", "uninstall", "check"),
+    ),
+    CommandDef(
+        "cron",
+        "Manage scheduled tasks",
+        "Tools & Skills",
+        cli_only=True,
+        args_hint="[subcommand]",
+        subcommands=("list", "add", "create", "edit", "pause", "resume", "run", "remove"),
+    ),
+    CommandDef(
+        "pairing",
+        "Manage DM pairing approvals",
+        "Tools & Skills",
+        cli_only=True,
+        args_hint="[list|approve|revoke|clear-pending]",
+        subcommands=("list", "approve", "revoke", "clear-pending"),
+    ),
+    CommandDef(
+        "reload-mcp", "Reload MCP servers from config", "Tools & Skills", aliases=("reload_mcp",)
+    ),
+    CommandDef(
+        "browser",
+        "Connect browser tools to your live Chrome via CDP",
+        "Tools & Skills",
+        cli_only=True,
+        args_hint="[connect|disconnect|status]",
+        subcommands=("connect", "disconnect", "status"),
+    ),
+    CommandDef(
+        "plugins", "List installed plugins and their status", "Tools & Skills", cli_only=True
+    ),
+    CommandDef(
+        "memory",
+        "Manage persistent memory across sessions",
+        "Tools & Skills",
+        args_hint="[add|search|list|delete|clear] <text>",
+        subcommands=("add", "search", "list", "delete", "clear"),
+    ),
+    CommandDef(
+        "plan",
+        "Structured planning mode - create and execute step-by-step plans",
+        "Tools & Skills",
+        args_hint="[create|show|next|edit|add|delete|cancel|list] <args>",
+        subcommands=("create", "show", "next", "edit", "add", "delete", "cancel", "list"),
+    ),
     CommandDef(
         "lean",
         "Lean / Aristotle: submit|prove|draft|formalize|swarm (lean.*_argv), doctor, project",
@@ -170,28 +268,22 @@ COMMAND_REGISTRY: list[CommandDef] = [
         args_hint="tirith-install",
         subcommands=("tirith-install",),
     ),
-
     # Info
     CommandDef("help", "Show available commands", "Info"),
     CommandDef("usage", "Show token usage for the current session", "Info"),
-    CommandDef("insights", "Show usage insights and analytics", "Info",
-               args_hint="[days]"),
-    CommandDef("platforms", "Show gateway/messaging platform status", "Info",
-               cli_only=True),
-    CommandDef("paste", "Check clipboard for an image and attach it", "Info",
-               cli_only=True),
-    CommandDef("update", "Update IO to the latest version", "Info",
-               gateway_only=True),
-
+    CommandDef("insights", "Show usage insights and analytics", "Info", args_hint="[days]"),
+    CommandDef("platforms", "Show gateway/messaging platform status", "Info", cli_only=True),
+    CommandDef("paste", "Check clipboard for an image and attach it", "Info", cli_only=True),
+    CommandDef("update", "Update IO to the latest version", "Info", gateway_only=True),
     # Exit
-    CommandDef("quit", "Exit the CLI", "Exit",
-               cli_only=True, aliases=("exit", "q")),
+    CommandDef("quit", "Exit the CLI", "Exit", cli_only=True, aliases=("exit", "q")),
 ]
 
 
 # ---------------------------------------------------------------------------
 # Derived lookups -- rebuilt once at import time
 # ---------------------------------------------------------------------------
+
 
 def _build_command_lookup() -> dict[str, CommandDef]:
     """Map every name and alias to its CommandDef."""
@@ -265,10 +357,7 @@ for _cmd in COMMAND_REGISTRY:
 
 # Set of all command names + aliases recognized by the gateway
 GATEWAY_KNOWN_COMMANDS: frozenset[str] = frozenset(
-    name
-    for cmd in COMMAND_REGISTRY
-    if not cmd.cli_only
-    for name in (cmd.name, *cmd.aliases)
+    name for cmd in COMMAND_REGISTRY if not cmd.cli_only for name in (cmd.name, *cmd.aliases)
 )
 
 
@@ -343,6 +432,7 @@ def slack_subcommand_map() -> dict[str, str]:
 # Autocomplete
 # ---------------------------------------------------------------------------
 
+
 class SlashCommandCompleter(Completer):
     """Autocomplete for built-in slash commands, subcommands, and skill commands."""
 
@@ -369,6 +459,7 @@ class SlashCommandCompleter(Completer):
     def _get_model_info(self) -> dict[str, Any]:
         """Get cached model/provider info for /model autocomplete."""
         import time
+
         now = time.monotonic()
         if self._model_info_cache is not None and now - self._model_info_cache_time < 60:
             return self._model_info_cache
@@ -432,7 +523,7 @@ class SlashCommandCompleter(Completer):
         i = len(text) - 1
         while i >= 0 and text[i] != " ":
             i -= 1
-        word = text[i + 1:]
+        word = text[i + 1 :]
         if not word:
             return None
         # `@path` context-reference completion (even for simple filenames).
@@ -534,7 +625,10 @@ class SlashCommandCompleter(Completer):
                             except Exception:
                                 prov_models = []
                             for mid in prov_models:
-                                if mid.lower().startswith(model_lower) and mid.lower() != model_lower:
+                                if (
+                                    mid.lower().startswith(model_lower)
+                                    and mid.lower() != model_lower
+                                ):
                                     full = f"{prov_part}:{mid}"
                                     yield Completion(
                                         full,
@@ -645,6 +739,7 @@ class SlashCommandCompleter(Completer):
 # Inline auto-suggest (ghost text) for slash commands
 # ---------------------------------------------------------------------------
 
+
 class SlashCommandAutoSuggest(AutoSuggest):
     """Inline ghost-text suggestions for slash commands and their subcommands.
 
@@ -679,7 +774,7 @@ class SlashCommandAutoSuggest(AutoSuggest):
             for cmd in COMMANDS:
                 cmd_name = cmd[1:]  # strip leading /
                 if cmd_name.startswith(word) and cmd_name != word:
-                    return Suggestion(cmd_name[len(word):])
+                    return Suggestion(cmd_name[len(word) :])
             return None
 
         # Command is complete Φ suggest subcommands or model names
@@ -701,16 +796,22 @@ class SlashCommandAutoSuggest(AutoSuggest):
                     if models_for:
                         try:
                             for mid in models_for(prov_part):
-                                if mid.lower().startswith(model_lower) and mid.lower() != model_lower:
-                                    return Suggestion(mid[len(model_part):])
+                                if (
+                                    mid.lower().startswith(model_lower)
+                                    and mid.lower() != model_lower
+                                ):
+                                    return Suggestion(mid[len(model_part) :])
                         except Exception:
                             pass
                 else:
                     # Stage 1: suggest provider name with :
                     for pid in sorted(providers, key=lambda p: (p == current_prov, p)):
                         candidate = f"{pid}:"
-                        if candidate.lower().startswith(sub_lower) and candidate.lower() != sub_lower:
-                            return Suggestion(candidate[len(sub_text):])
+                        if (
+                            candidate.lower().startswith(sub_lower)
+                            and candidate.lower() != sub_lower
+                        ):
+                            return Suggestion(candidate[len(sub_text) :])
 
         # /provider ghost text: complete provider id
         if base_cmd == "/provider" and " " not in sub_text and self._completer:
@@ -726,7 +827,7 @@ class SlashCommandAutoSuggest(AutoSuggest):
             if " " not in sub_text:
                 for sub in SUBCOMMANDS[base_cmd]:
                     if sub.startswith(sub_lower) and sub != sub_lower:
-                        return Suggestion(sub[len(sub_text):])
+                        return Suggestion(sub[len(sub_text) :])
 
         # Fall back to history
         if self._history:

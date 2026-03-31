@@ -67,7 +67,12 @@ async def handle_repl_slash_command(
 
     raw_name, arguments = parsed
     if raw_name == "start":
-        lines = ["IO commands (REPL / gateway parity):", *gateway_help_lines(), "", "Send normal text to chat with the agent."]
+        lines = [
+            "IO commands (REPL / gateway parity):",
+            *gateway_help_lines(),
+            "",
+            "Send normal text to chat with the agent.",
+        ]
         return True, "\n".join(lines)
 
     command = resolve_command(raw_name)
@@ -108,7 +113,9 @@ async def handle_repl_slash_command(
             for platform_name in configured:
                 runtime_state = "inactive"
                 if isinstance(runtime_platforms, dict):
-                    runtime_state = str(runtime_platforms.get(platform_name, {}).get("state", "inactive"))
+                    runtime_state = str(
+                        runtime_platforms.get(platform_name, {}).get("state", "inactive")
+                    )
                 home_channel = None
                 if isinstance(home_channels, dict):
                     home_channel = home_channels.get(platform_name, {}).get("chat_id")
@@ -135,9 +142,7 @@ async def handle_repl_slash_command(
                 f"Runtime: {status.get('runtime', {}).get('gateway_state') or 'stopped'}",
             ]
             configured = list(status.get("configured_platforms", []))
-            lines.append(
-                "Configured: " + (", ".join(configured) if configured else "(none)")
-            )
+            lines.append("Configured: " + (", ".join(configured) if configured else "(none)"))
             return True, "\n".join(lines)
         return True, "Usage: /gateway start|run|status"
 
@@ -152,12 +157,20 @@ async def handle_repl_slash_command(
         return True, f"gauss exited with code {code}"
 
     if canonical in {"help", "start"}:
-        lines = ["IO commands (REPL / gateway parity):", *gateway_help_lines(), "", "Send normal text to chat with the agent."]
+        lines = [
+            "IO commands (REPL / gateway parity):",
+            *gateway_help_lines(),
+            "",
+            "Send normal text to chat with the agent.",
+        ]
         return True, "\n".join(lines)
 
     if canonical in {"new", "reset"}:
         session = SessionManager.create(cwd, home=home)
-        return True, f"Started a new session.\nSession ID: {session.session_id}\nSession file: {session.session_path()}"
+        return (
+            True,
+            f"Started a new session.\nSession ID: {session.session_id}\nSession file: {session.session_path()}",
+        )
 
     if canonical == "provider":
         if arguments:
@@ -167,7 +180,10 @@ async def handle_repl_slash_command(
             if isinstance(providers, dict):
                 known.update(str(name) for name in providers)
             if selected not in known and not selected.startswith("custom:"):
-                return True, f"Unknown provider '{selected}'. Known providers: {', '.join(sorted(known))}"
+                return (
+                    True,
+                    f"Unknown provider '{selected}'. Known providers: {', '.join(sorted(known))}",
+                )
             config = load_config(home)
             config.setdefault("model", {})
             config["model"]["provider"] = selected
@@ -191,7 +207,10 @@ async def handle_repl_slash_command(
             if isinstance(provs, dict):
                 known.update(str(name) for name in provs)
             if choice not in known and not choice.startswith("custom:"):
-                return True, f"Unknown provider '{choice}'. Known providers: {', '.join(sorted(known))}"
+                return (
+                    True,
+                    f"Unknown provider '{choice}'. Known providers: {', '.join(sorted(known))}",
+                )
             config.setdefault("model", {})
             config["model"]["provider"] = choice
             save_config(config, home)
@@ -251,7 +270,10 @@ async def handle_repl_slash_command(
         if lowered in {"on", "off"}:
             set_model_router_auto(config, lowered == "on")
             save_config(config, home)
-            return True, f"Model router auto-routing {'enabled' if lowered == 'on' else 'disabled'}."
+            return (
+                True,
+                f"Model router auto-routing {'enabled' if lowered == 'on' else 'disabled'}.",
+            )
         if lowered.startswith("auto "):
             value = lowered.split(None, 1)[1].strip()
             if value not in {"on", "off"}:
@@ -272,7 +294,11 @@ async def handle_repl_slash_command(
             if fallbacks:
                 lines.append(
                     "Fallbacks: "
-                    + ", ".join(f"{item['provider']}/{item['model']}" for item in fallbacks if isinstance(item, dict))
+                    + ", ".join(
+                        f"{item['provider']}/{item['model']}"
+                        for item in fallbacks
+                        if isinstance(item, dict)
+                    )
                 )
             return True, "\n".join(lines)
         payload = model_router_status(config=config, home=home, env=env)
@@ -283,13 +309,17 @@ async def handle_repl_slash_command(
             f"Current runtime: {runtime_payload.get('provider')} / {runtime_payload.get('model')}",
         ]
         if cheap_payload:
-            lines.append(f"Cheap model: {cheap_payload.get('provider')} / {cheap_payload.get('model')}")
+            lines.append(
+                f"Cheap model: {cheap_payload.get('provider')} / {cheap_payload.get('model')}"
+            )
         fallbacks = payload.get("fallbacks") or []
         lines.append(
             "Fallbacks: "
             + (
                 ", ".join(
-                    f"{item['provider']}/{item['model']}" for item in fallbacks if isinstance(item, dict)
+                    f"{item['provider']}/{item['model']}"
+                    for item in fallbacks
+                    if isinstance(item, dict)
                 )
                 if fallbacks
                 else "(none)"
@@ -313,7 +343,12 @@ async def handle_repl_slash_command(
                 show = selected in {"on", "show"}
                 display_cfg["show_reasoning"] = show
                 save_config(config, home)
-                return True, "Reasoning display is now visible." if show else "Reasoning display is now hidden."
+                return (
+                    True,
+                    "Reasoning display is now visible."
+                    if show
+                    else "Reasoning display is now hidden.",
+                )
             return (
                 True,
                 "Usage: /reasoning [none|minimal|low|medium|high|xhigh|show|hide|on|off]",
@@ -441,6 +476,324 @@ async def handle_repl_slash_command(
         )
         return True, result.text.strip() or "(no response)"
 
+    # Claudetenks fusion commands
+    if canonical == "compact":
+        """Trigger context compression immediately."""
+        from io_agent.smart_compressor import SmartCompressor
+        from .session import SessionManager
+
+        session_manager = SessionManager.open(session_file)
+        messages = session_manager.read_messages()
+
+        if len(messages) < 10:
+            return True, "Not enough context to compact (need 10+ messages)."
+
+        compressor = SmartCompressor()
+        result = compressor.compress(messages, force=True)
+
+        if not result:
+            return True, "Context compression did not yield savings."
+
+        # Update session with compressed messages
+        session_manager.write_messages(result.compressed_messages)
+
+        report_lines = [
+            "📦 Context Compacted",
+            f"Messages removed: {result.messages_removed}",
+            f"Messages preserved: {result.messages_preserved}",
+            f"Estimated tokens saved: ~{result.tokens_saved}",
+        ]
+        if result.key_points:
+            report_lines.append("\nKey points preserved:")
+            for point in result.key_points[:5]:
+                report_lines.append(f"  • {point}")
+
+        return True, "\n".join(report_lines)
+
+    if canonical == "memory":
+        """Manage persistent memory."""
+        from .memory_store import MemoryStore
+
+        mem = MemoryStore(home=home)
+        args_parts = arguments.split(maxsplit=1)
+        subcommand = args_parts[0].lower() if args_parts else "list"
+        rest = args_parts[1] if len(args_parts) > 1 else ""
+
+        if subcommand == "add":
+            if not rest:
+                return True, "Usage: /memory add <content>"
+            memory = mem.add(rest, category="fact", source="user")
+            return True, f"✓ Memory added: {memory.id}"
+
+        elif subcommand == "search":
+            if not rest:
+                return True, "Usage: /memory search <query>"
+            results = mem.search(rest, limit=10)
+            if not results:
+                return True, "No memories found."
+            lines = ["Memories:"]
+            for m in results:
+                lines.append(f"  [{m.category}] {m.content[:60]}... ({m.id})")
+            return True, "\n".join(lines)
+
+        elif subcommand == "list":
+            stats = mem.get_stats()
+            lines = [
+                f"Total memories: {stats['total_memories']}",
+                "By category:",
+            ]
+            for cat, count in stats["by_category"].items():
+                lines.append(f"  {cat}: {count}")
+            if stats["most_accessed"]:
+                lines.append("\nMost accessed:")
+                for m in stats["most_accessed"][:3]:
+                    lines.append(f"  • {m.content[:50]}... ({m.access_count}x)")
+            return True, "\n".join(lines)
+
+        elif subcommand == "delete":
+            if not rest:
+                return True, "Usage: /memory delete <id-or-pattern>"
+            # Try exact ID first, then pattern
+            if mem.delete(rest):
+                return True, f"✓ Memory {rest} deleted"
+            count = mem.delete_by_pattern(rest)
+            if count:
+                return True, f"✓ Deleted {count} memories matching '{rest}'"
+            return True, f"No memories found for: {rest}"
+
+        elif subcommand == "clear":
+            # This is dangerous - require confirmation
+            if rest != "--force":
+                return True, "⚠️  This will delete ALL memories. Use: /memory clear --force"
+            # Implementation would clear all - skipping for safety
+            return True, "Memory clear not yet implemented (safety check)"
+
+        else:
+            return True, "Usage: /memory [add|search|list|delete|clear] <args>"
+
+    if canonical == "plan":
+        """Plan mode - structured step-by-step planning."""
+        from .plan_manager import PlanManager, PlanStepStatus
+
+        plan_mgr = PlanManager(home=home)
+        args_parts = arguments.split(maxsplit=1)
+        subcommand = args_parts[0].lower() if args_parts else "show"
+        rest = args_parts[1] if len(args_parts) > 1 else ""
+
+        if subcommand == "create":
+            if not rest:
+                return True, "Usage: /plan create <title> | step 1 | step 2 | ..."
+
+            # Parse: title | step1 | step2 | ...
+            parts = [p.strip() for p in rest.split("|")]
+            if len(parts) < 2:
+                return True, "Usage: /plan create <title> | step 1 | step 2 | ..."
+
+            title = parts[0]
+            steps = parts[1:]
+
+            plan = plan_mgr.create_plan(
+                title=title, description=f"Plan created from user request", steps=steps
+            )
+            plan_mgr.set_active_plan(plan)
+
+            return (
+                True,
+                f"✓ Plan created: {plan.title}\n   ID: {plan.id}\n   Steps: {len(plan.steps)}\n\nUse /plan next to start executing",
+            )
+
+        elif subcommand == "show":
+            plan = plan_mgr.get_active_plan()
+            if not plan:
+                # Try to load from ID
+                if rest:
+                    plan = plan_mgr.load_plan(rest)
+                if not plan:
+                    plans = plan_mgr.list_plans()
+                    if not plans:
+                        return True, "No plans found. Create one with: /plan create"
+                    plan = plans[0]
+                    plan_mgr.set_active_plan(plan)
+
+            return True, plan_mgr.format_plan(plan)
+
+        elif subcommand == "list":
+            plans = plan_mgr.list_plans()
+            if not plans:
+                return True, "No plans found."
+
+            lines = ["Plans:"]
+            for p in plans:
+                status_icon = (
+                    "✓" if p.status == "completed" else "◐" if p.status == "active" else "✗"
+                )
+                lines.append(f"  {status_icon} {p.title} ({p.progress_percentage():.0f}%) - {p.id}")
+            return True, "\n".join(lines)
+
+        elif subcommand == "next":
+            plan = plan_mgr.get_active_plan()
+            if not plan:
+                return True, "No active plan. Use /plan show or /plan create"
+
+            current = plan.get_current_step()
+            if not current:
+                return True, "Plan completed! 🎉"
+
+            # Execute the current step
+            step_prompt = current.description
+            result = await run_prompt(
+                step_prompt,
+                cwd=cwd,
+                home=home,
+                model=repl_args.model,
+                provider=repl_args.provider,
+                load_extensions=load_extensions,
+                on_event=on_event,
+            )
+
+            # Update step status
+            plan_mgr.update_step_status(
+                plan.id, current.id, PlanStepStatus.COMPLETED, result=result.text
+            )
+
+            # Advance to next
+            plan = plan_mgr.advance_to_next_step(plan.id)
+
+            lines = [
+                f"✓ Completed: {current.description}",
+                "",
+            ]
+
+            if plan and plan.get_current_step():
+                next_step = plan.get_current_step()
+                lines.extend(
+                    [
+                        f"Next step: {next_step.description}",
+                        "Run /plan next to continue",
+                    ]
+                )
+            else:
+                lines.append("🎉 Plan completed!")
+
+            return True, "\n".join(lines)
+
+        elif subcommand == "edit":
+            # Format: /plan edit <step_number> <new_description>
+            parts = rest.split(maxsplit=1)
+            if len(parts) < 2:
+                return True, "Usage: /plan edit <step_number> <new_description>"
+
+            plan = plan_mgr.get_active_plan()
+            if not plan:
+                return True, "No active plan."
+
+            try:
+                step_num = int(parts[0]) - 1
+                if step_num < 0 or step_num >= len(plan.steps):
+                    return True, f"Invalid step number. Plan has {len(plan.steps)} steps."
+
+                step = plan.steps[step_num]
+                plan_mgr.edit_step(plan.id, step.id, parts[1])
+                return True, f"✓ Step {step_num + 1} updated"
+            except ValueError:
+                return True, "Usage: /plan edit <step_number> <new_description>"
+
+        elif subcommand == "add":
+            plan = plan_mgr.get_active_plan()
+            if not plan:
+                return True, "No active plan."
+
+            if not rest:
+                return True, "Usage: /plan add <step_description>"
+
+            plan_mgr.add_step(plan.id, rest)
+            return True, f"✓ Step added to plan"
+
+        elif subcommand == "delete":
+            plan = plan_mgr.get_active_plan()
+            if not plan:
+                return True, "No active plan."
+
+            if not rest:
+                return True, "Usage: /plan delete <step_number>"
+
+            try:
+                step_num = int(rest) - 1
+                if step_num < 0 or step_num >= len(plan.steps):
+                    return True, f"Invalid step number. Plan has {len(plan.steps)} steps."
+
+                step = plan.steps[step_num]
+                plan_mgr.delete_step(plan.id, step.id)
+                return True, f"✓ Step {step_num + 1} deleted"
+            except ValueError:
+                return True, "Usage: /plan delete <step_number>"
+
+        elif subcommand == "cancel":
+            plan = plan_mgr.get_active_plan()
+            if not plan:
+                return True, "No active plan."
+
+            plan_mgr.cancel_plan(plan.id)
+            return True, f"✓ Plan '{plan.title}' cancelled"
+
+        else:
+            return True, "Usage: /plan [create|show|list|next|edit|add|delete|cancel]"
+
+    if canonical == "permissions":
+        """Manage tool permissions."""
+        from .permissions import PermissionContext, ToolPermissionRule, SAFE_PROFILE
+
+        perms = PermissionContext(home=home)
+        args_parts = arguments.split(maxsplit=2)
+        subcommand = args_parts[0].lower() if args_parts else "list"
+
+        if subcommand == "list":
+            rules = perms.get_rules_summary()
+            if not rules:
+                return (
+                    True,
+                    "No permission rules set. All tools use default behavior (prompt if dangerous).",
+                )
+            lines = ["Permission rules:"]
+            for rule in rules:
+                lines.append(f"  [{rule['action']}] {rule['tool_pattern']}")
+                if rule["reason"]:
+                    lines.append(f"    Reason: {rule['reason']}")
+            return True, "\n".join(lines)
+
+        elif subcommand == "allow":
+            if len(args_parts) < 2:
+                return True, "Usage: /permissions allow <tool-pattern> [reason]"
+            pattern = args_parts[1]
+            reason = args_parts[2] if len(args_parts) > 2 else ""
+            perms.add_rule(ToolPermissionRule(pattern, "allow", reason=reason), persist=True)
+            return True, f"✓ Rule added: allow {pattern}"
+
+        elif subcommand == "deny":
+            if len(args_parts) < 2:
+                return True, "Usage: /permissions deny <tool-pattern> [reason]"
+            pattern = args_parts[1]
+            reason = args_parts[2] if len(args_parts) > 2 else "Denied by user"
+            perms.add_rule(ToolPermissionRule(pattern, "deny", reason=reason), persist=True)
+            return True, f"✓ Rule added: deny {pattern}"
+
+        elif subcommand == "prompt":
+            if len(args_parts) < 2:
+                return True, "Usage: /permissions prompt <tool-pattern> [reason]"
+            pattern = args_parts[1]
+            reason = args_parts[2] if len(args_parts) > 2 else ""
+            perms.add_rule(ToolPermissionRule(pattern, "prompt", reason=reason), persist=True)
+            return True, f"✓ Rule added: prompt for {pattern}"
+
+        elif subcommand == "reset-safe":
+            # Load safe defaults
+            for rule in SAFE_PROFILE:
+                perms.add_rule(rule, persist=True)
+            return True, "✓ Safe permission profile loaded"
+
+        else:
+            return True, "Usage: /permissions [list|allow|deny|prompt|reset-safe] <args>"
+
     if command.cli_only:
         return (
             True,
@@ -455,4 +808,7 @@ async def handle_repl_slash_command(
             "See /help for supported commands, or use the matching `io` subcommand.",
         )
 
-    return True, f"/{canonical} is not implemented in REPL yet. Try `io {canonical} --help` or /help."
+    return (
+        True,
+        f"/{canonical} is not implemented in REPL yet. Try `io {canonical} --help` or /help.",
+    )

@@ -24,6 +24,7 @@ class ToolContext:
     approval_callback: ApprovalCallback | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     tool_output_callback: ToolOutputCallback | None = None
+    permission_context: Any | None = None  # PermissionContext for granular controls
 
 
 class Tool:
@@ -75,7 +76,9 @@ GLOBAL_TOOL_REGISTRY = ToolRegistry()
 class ToolsetResolver:
     toolsets: dict[str, set[str]] = field(default_factory=dict)
 
-    def resolve(self, requested: list[str] | None, *, registry: ToolRegistry | None = None) -> set[str]:
+    def resolve(
+        self, requested: list[str] | None, *, registry: ToolRegistry | None = None
+    ) -> set[str]:
         registry = registry or GLOBAL_TOOL_REGISTRY
         if not requested:
             return set(registry.tools)
@@ -94,8 +97,34 @@ async def execute_tool_batch(
     context: ToolContext,
 ) -> list[tuple[str, ToolResult]]:
     async def _run(tool: Tool, arguments: dict[str, Any], call_id: str) -> tuple[str, ToolResult]:
+        # Check granular permissions if available (Claudetenks fusion)
+        if context.permission_context is not None:
+            try:
+                tool_reason = tool.approval_reason(arguments)
+                action, reason = context.permission_context.check_permission(
+                    tool.name, arguments, tool_reason
+                )
+                if action == "deny":
+                    return call_id, ToolResult(
+                        content=f"Permission denied: {reason or tool.name}", is_error=True
+                    )
+                if action == "prompt" and context.approval_callback:
+                    if not context.approval_callback(
+                        tool.name, arguments, reason or f"{tool.name} requires approval"
+                    ):
+                        return call_id, ToolResult(
+                            content=f"Approval denied for {tool.name}", is_error=True
+                        )
+            except Exception:
+                pass  # Fall back to standard approval
+
+        # Standard approval flow
         reason = tool.approval_reason(arguments)
-        if reason and context.approval_callback and not context.approval_callback(tool.name, arguments, reason):
+        if (
+            reason
+            and context.approval_callback
+            and not context.approval_callback(tool.name, arguments, reason)
+        ):
             return call_id, ToolResult(content=reason, is_error=True)
         return call_id, await tool.execute(context, arguments)
 
@@ -104,5 +133,8 @@ async def execute_tool_batch(
         for tool, arguments, call_id in tool_calls:
             results.append(await _run(tool, arguments, call_id))
         return results
-    return list(await asyncio.gather(*(_run(tool, arguments, call_id) for tool, arguments, call_id in tool_calls)))
-
+    return list(
+        await asyncio.gather(
+            *(_run(tool, arguments, call_id) for tool, arguments, call_id in tool_calls)
+        )
+    )
