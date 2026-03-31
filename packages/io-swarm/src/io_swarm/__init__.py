@@ -10,6 +10,9 @@ from .atropos import (
     TrainingTrajectory,
     create_atropos_trainer,
 )
+from .autoresearch_core import AutoResearchCore
+from .autoresearch_types import ExperimentResult
+from .bash_live import BashLiveView, run_with_live_view
 from .manager import SwarmManager, SwarmTask, TaskStatus
 from .mini_swe import BenchmarkResult, MiniSWEAgent, run_swe_bench_suite
 from .projects import LeanProject, ProjectRegistry
@@ -53,6 +56,12 @@ __all__ = [
     "RewardModel",
     "TrainingTrajectory",
     "create_atropos_trainer",
+    # AutoResearch
+    "AutoResearchCore",
+    "ExperimentResult",
+    # Bash Live
+    "BashLiveView",
+    "run_with_live_view",
     # Tinker (Training)
     "TinkerConfig",
     "TinkerTrainer",
