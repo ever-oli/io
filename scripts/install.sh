@@ -26,7 +26,7 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # Configuration
-REPO_URL_SSH="git.com:ever-oli/io.git"
+REPO_URL_SSH="git@github.com:ever-oli/io.git"
 REPO_URL_HTTPS="https://github.com/ever-oli/io.git"
 IO_HOME="$HOME/.io"
 INSTALL_DIR="${IO_INSTALL_DIR:-$IO_HOME/io}"
@@ -73,7 +73,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --no-venv      Don't create virtual environment"
-            echo "  --skip-setup   Skip interactive setup wizard"
+            echo "  --skip-setup   Skip post-install setup guidance"
             echo "  --branch NAME  Git branch to install (default: main)"
             echo "  --dir PATH     Installation directory (default: ~/.io/io)"
             echo "  -h, --help     Show this help"
@@ -93,28 +93,28 @@ done
 print_banner() {
     echo ""
     echo -e "${MAGENTA}${BOLD}"
-    echo "Î¦”ŒÎ¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”"
-    echo "Î¦”‚             Î¦Î¦Î¦ IO Installer                   Î¦”‚"
-    echo "Î¦”œÎ¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”Î¦"
-    echo "Î¦”‚  An open source AI agent by Most Wanted Research.              Î¦”‚"
-    echo "Î¦””Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”Î¦"
+    echo "â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”"
+    echo "â”‚                    IO Installer                         â”‚"
+    echo "â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤"
+    echo "â”‚  An open source AI coding agent by ever-oli.            â”‚"
+    echo "â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜"
     echo -e "${NC}"
 }
 
 log_info() {
-    echo -e "${CYAN}Î¦†’${NC} $1"
+    echo -e "${CYAN}â†’${NC} $1"
 }
 
 log_success() {
-    echo -e "${GREEN}Î¦œ“${NC} $1"
+    echo -e "${GREEN}âœ“${NC} $1"
 }
 
 log_warn() {
-    echo -e "${YELLOW}Î¦Î¦ ${NC} $1"
+    echo -e "${YELLOW}âš ${NC} $1"
 }
 
 log_error() {
-    echo -e "${RED}Î¦œ—${NC} $1"
+    echo -e "${RED}âœ—${NC} $1"
 }
 
 # ============================================================================
@@ -211,7 +211,7 @@ install_uv() {
 check_python() {
     log_info "Checking Python $PYTHON_VERSION..."
 
-    # Let uv handle Python Î¦€” it can download and manage Python versions
+    # Let uv handle Python â€” it can download and manage Python versions
     # First check if a suitable Python is already available
     if $UV_CMD python find "$PYTHON_VERSION" &> /dev/null; then
         PYTHON_PATH=$($UV_CMD python find "$PYTHON_VERSION")
@@ -220,7 +220,7 @@ check_python() {
         return 0
     fi
 
-    # Python not found Î¦€” use uv to install it (no sudo needed!)
+    # Python not found â€” use uv to install it (no sudo needed!)
     log_info "Python $PYTHON_VERSION not found, installing via uv..."
     if $UV_CMD python install "$PYTHON_VERSION"; then
         PYTHON_PATH=$($UV_CMD python find "$PYTHON_VERSION")
@@ -290,7 +290,7 @@ check_node() {
         return 0
     fi
 
-    log_info "Node.js not found Î¦€” installing Node.js $NODE_VERSION LTS..."
+    log_info "Node.js not found â€” installing Node.js $NODE_VERSION LTS..."
     install_node
 }
 
@@ -413,7 +413,7 @@ install_system_packages() {
         need_ffmpeg=true
     fi
 
-    # Nothing to install Î¦€” done
+    # Nothing to install â€” done
     if [ "$need_ripgrep" = false ] && [ "$need_ffmpeg" = false ]; then
         return 0
     fi
@@ -432,7 +432,7 @@ install_system_packages() {
     local description
     description=$(IFS=" and "; echo "${desc_parts[*]}")
 
-    # Î¦”€Î¦”€ macOS: brew Î¦”€Î¦”€
+    # â”€â”€ macOS: brew â”€â”€
     if [ "$OS" = "macos" ]; then
         if command -v brew &> /dev/null; then
             log_info "Installing ${pkgs[*]} via Homebrew..."
@@ -447,7 +447,7 @@ install_system_packages() {
         return 0
     fi
 
-    # Î¦”€Î¦”€ Linux: resolve package manager command Î¦”€Î¦”€
+    # â”€â”€ Linux: resolve package manager command â”€â”€
     local pkg_install=""
     case "$DISTRO" in
         ubuntu|debian) pkg_install="apt install -y"   ;;
@@ -463,7 +463,7 @@ install_system_packages() {
             ubuntu|debian) export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a ;;
         esac
 
-        # Already root Î¦€” just install
+        # Already root â€” just install
         if [ "$(id -u)" -eq 0 ]; then
             log_info "Installing ${pkgs[*]}..."
             if $install_cmd; then
@@ -471,7 +471,7 @@ install_system_packages() {
                 [ "$need_ffmpeg" = true ]  && HAS_FFMPEG=true  && log_success "ffmpeg installed"
                 return 0
             fi
-        # Passwordless sudo Î¦€” just install
+        # Passwordless sudo â€” just install
         elif command -v sudo &> /dev/null && sudo -n true 2>/dev/null; then
             log_info "Installing ${pkgs[*]}..."
             if sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a $install_cmd; then
@@ -479,7 +479,7 @@ install_system_packages() {
                 [ "$need_ffmpeg" = true ]  && HAS_FFMPEG=true  && log_success "ffmpeg installed"
                 return 0
             fi
-        # sudo needs password Î¦€” ask once for everything
+        # sudo needs password â€” ask once for everything
         elif command -v sudo &> /dev/null; then
             if [ "$IS_INTERACTIVE" = true ]; then
                 echo ""
@@ -510,13 +510,13 @@ install_system_packages() {
                     fi
                 fi
             else
-                log_warn "Non-interactive mode and no terminal available Î¦€” cannot install system packages"
+                log_warn "Non-interactive mode and no terminal available â€” cannot install system packages"
                 log_info "Install manually after setup completes: sudo $install_cmd"
             fi
         fi
     fi
 
-    # Î¦”€Î¦”€ Fallback for ripgrep: cargo Î¦”€Î¦”€
+    # â”€â”€ Fallback for ripgrep: cargo â”€â”€
     if [ "$need_ripgrep" = true ] && [ "$HAS_RIPGREP" = false ]; then
         if command -v cargo &> /dev/null; then
             log_info "Trying cargo install ripgrep (no sudo needed)..."
@@ -527,7 +527,7 @@ install_system_packages() {
         fi
     fi
 
-    # Î¦”€Î¦”€ Show manual instructions for anything still missing Î¦”€Î¦”€
+    # â”€â”€ Show manual instructions for anything still missing â”€â”€
     if [ "$HAS_RIPGREP" = false ] && [ "$need_ripgrep" = true ]; then
         log_warn "ripgrep not installed (file search will use grep fallback)"
         show_manual_install_hint "ripgrep"
@@ -577,7 +577,7 @@ clone_repo() {
 
             git fetch origin
             git checkout "$BRANCH"
-            git pull origin "$BRANCH"
+            git pull --ff-only origin "$BRANCH"
 
             if [ -n "$autostash_ref" ]; then
                 local restore_now="yes"
@@ -637,8 +637,8 @@ clone_repo() {
 
     cd "$INSTALL_DIR"
 
-    # Only init mini-swe-agent (terminal tool backend Î¦€” required).
-    # tinker-atropos (RL training) is optional and heavy Î¦€” users can opt in later
+    # Only init mini-swe-agent (terminal tool backend â€” required).
+    # tinker-atropos (RL training) is optional and heavy â€” users can opt in later
     # with: git submodule update --init tinker-atropos && uv pip install -e ./tinker-atropos
     log_info "Initializing mini-swe-agent submodule (terminal backend)..."
     git submodule update --init mini-swe-agent
@@ -706,14 +706,19 @@ install_deps() {
 
     # Install the main package in editable mode with all extras.
     # Try [all] first, fall back to base install if extras have issues.
-    if ! $UV_CMD pip install -e ".[all]" 2>/dev/null; then
+    ALL_INSTALL_LOG=$(mktemp)
+    if ! $UV_CMD pip install -e ".[all]" 2>"$ALL_INSTALL_LOG"; then
         log_warn "Full install (.[all]) failed, trying base install..."
+        log_info "Reason: $(tail -5 "$ALL_INSTALL_LOG" | head -3)"
+        rm -f "$ALL_INSTALL_LOG"
         if ! $UV_CMD pip install -e "."; then
             log_error "Package installation failed."
             log_info "Check that build tools are installed: sudo apt install build-essential python3-dev"
             log_info "Then re-run: cd $INSTALL_DIR && uv pip install -e '.[all]'"
             exit 1
         fi
+    else
+        rm -f "$ALL_INSTALL_LOG"
     fi
 
     log_success "Main package installed"
@@ -727,10 +732,10 @@ install_deps() {
         log_warn "mini-swe-agent not found (run: git submodule update --init)"
     fi
 
-    # tinker-atropos (RL training) is optional Î¦€” skip by default.
+    # tinker-atropos (RL training) is optional â€” skip by default.
     # To enable RL tools: git submodule update --init tinker-atropos && uv pip install -e "./tinker-atropos"
     if [ -d "tinker-atropos" ] && [ -f "tinker-atropos/pyproject.toml" ]; then
-        log_info "tinker-atropos submodule found Î¦€” skipping install (optional, for RL training)"
+        log_info "tinker-atropos submodule found â€” skipping install (optional, for RL training)"
         log_info "  To install: $UV_CMD pip install -e \"./tinker-atropos\""
     fi
 
@@ -761,7 +766,7 @@ setup_path() {
     # Create symlink in ~/.local/bin (standard user binary location, usually on PATH)
     mkdir -p "$HOME/.local/bin"
     ln -sf "$IO_BIN" "$HOME/.local/bin/io"
-    log_success "Symlinked io Î¦†’ ~/.local/bin/io"
+    log_success "Symlinked io â†’ ~/.local/bin/io"
 
     # Check if ~/.local/bin is on PATH; if not, add it to shell config.
     # Detect the user's actual login shell (not the shell running this script,
@@ -769,9 +774,14 @@ setup_path() {
     if ! echo "$PATH" | tr ':' '\n' | grep -q "^$HOME/.local/bin$"; then
         SHELL_CONFIGS=()
         LOGIN_SHELL="$(basename "${SHELL:-/bin/bash}")"
-        case "$LOGIN_SHELL" in
+            case "$LOGIN_SHELL" in
             zsh)
                 [ -f "$HOME/.zshrc" ] && SHELL_CONFIGS+=("$HOME/.zshrc")
+                [ -f "$HOME/.zprofile" ] && SHELL_CONFIGS+=("$HOME/.zprofile")
+                if [ ${#SHELL_CONFIGS[@]} -eq 0 ]; then
+                    touch "$HOME/.zshrc"
+                    SHELL_CONFIGS+=("$HOME/.zshrc")
+                fi
                 ;;
             bash)
                 [ -f "$HOME/.bashrc" ] && SHELL_CONFIGS+=("$HOME/.bashrc")
@@ -791,7 +801,7 @@ setup_path() {
         for SHELL_CONFIG in "${SHELL_CONFIGS[@]}"; do
             if ! grep -v '^[[:space:]]*#' "$SHELL_CONFIG" 2>/dev/null | grep -qE 'PATH=.*\.local/bin'; then
                 echo "" >> "$SHELL_CONFIG"
-                echo "# IO Î¦€” ensure ~/.local/bin is on PATH" >> "$SHELL_CONFIG"
+                echo "# IO â€” ensure ~/.local/bin is on PATH" >> "$SHELL_CONFIG"
                 echo "$PATH_LINE" >> "$SHELL_CONFIG"
                 log_success "Added ~/.local/bin to PATH in $SHELL_CONFIG"
             fi
@@ -898,7 +908,7 @@ install_node_deps() {
         case "$DISTRO" in
             arch|manjaro)
                 if command -v pacman &> /dev/null; then
-                    log_info "Arch/Manjaro detected Î¦€” installing Chromium system dependencies via pacman..."
+                    log_info "Arch/Manjaro detected â€” installing Chromium system dependencies via pacman..."
                     if command -v sudo &> /dev/null && sudo -n true 2>/dev/null; then
                         sudo NEEDRESTART_MODE=a pacman -S --noconfirm --needed \
                             nss atk at-spi2-core cups libdrm libxkbcommon mesa pango cairo alsa-lib >/dev/null 2>&1 || true
@@ -914,7 +924,7 @@ install_node_deps() {
                 ;;
             *)
                 log_info "Playwright may request sudo to install browser system dependencies (shared libraries)."
-                log_info "This is standard Playwright setup Î¦€” IO itself does not require root access."
+                log_info "This is standard Playwright setup â€” IO itself does not require root access."
                 cd "$INSTALL_DIR" && npx playwright install --with-deps chromium 2>/dev/null || true
                 ;;
         esac
@@ -934,31 +944,24 @@ install_node_deps() {
 
 run_setup_wizard() {
     if [ "$RUN_SETUP" = false ]; then
-        log_info "Skipping setup wizard (--skip-setup)"
+        log_info "Skipping post-install setup guidance (--skip-setup)"
         return 0
     fi
 
-    # The setup wizard reads from /dev/tty, so it works even when the
-    # install script itself is piped (curl | bash). Only skip if no
-    # terminal is available at all (e.g. Docker build, CI).
+    # Only show interactive next steps if a terminal is available at all
+    # (e.g. not during Docker builds or CI).
     if ! [ -e /dev/tty ]; then
-        log_info "Setup wizard skipped (no terminal available). Run 'io setup' after install."
+        log_info "Post-install setup guidance skipped (no terminal available)."
+        log_info "Add provider keys in ~/.io/.env, adjust ~/.io/config.yaml if needed, then run 'io'."
         return 0
     fi
 
     echo ""
-    log_info "Starting setup wizard..."
+    log_info "Next steps:"
     echo ""
-
-    cd "$INSTALL_DIR"
-
-    # Run io setup using the venv Python directly (no activation needed).
-    # Redirect stdin from /dev/tty so interactive prompts work when piped from curl.
-    if [ "$USE_VENV" = true ]; then
-        "$INSTALL_DIR/venv/bin/python" -m io_cli.main setup < /dev/tty
-    else
-        python -m io_cli.main setup < /dev/tty
-    fi
+    log_info "1. Add provider credentials in ~/.io/.env"
+    log_info "2. Optionally adjust model/provider defaults in ~/.io/config.yaml"
+    log_info "3. Start IO with: io"
 }
 
 maybe_start_gateway() {
@@ -1034,7 +1037,7 @@ maybe_start_gateway() {
                 log_warn "Systemd install failed. You can start manually: io gateway"
             fi
         else
-            log_info "systemd not available Î¦€” starting gateway in background..."
+            log_info "systemd not available â€” starting gateway in background..."
             nohup $IO_CMD gateway > "$IO_HOME/logs/gateway.log" 2>&1 &
             GATEWAY_PID=$!
             log_success "Gateway started (PID $GATEWAY_PID). Logs: ~/.io/logs/gateway.log"
@@ -1049,9 +1052,9 @@ maybe_start_gateway() {
 print_success() {
     echo ""
     echo -e "${GREEN}${BOLD}"
-    echo "Î¦”ŒÎ¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”"
-    echo "Î¦”‚              Î¦œ“ Installation Complete!                   Î¦”‚"
-    echo "Î¦””Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”Î¦"
+    echo "â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”"
+    echo "â”‚              âœ“ Installation Complete!                   â”‚"
+    echo "â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜"
     echo -e "${NC}"
     echo ""
 
@@ -1064,23 +1067,29 @@ print_success() {
     echo -e "   ${YELLOW}Code:${NC}      ~/.io/io/"
     echo ""
 
-    echo -e "${CYAN}Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€${NC}"
+    echo -e "${CYAN}â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€${NC}"
     echo ""
-    echo -e "${CYAN}${BOLD}ğŸÎ¦€ Commands:${NC}"
+    echo -e "${CYAN}${BOLD}ğŸš€ Commands:${NC}"
     echo ""
     echo -e "   ${GREEN}io${NC}              Start chatting"
-    echo -e "   ${GREEN}io setup${NC}        Configure API keys & settings"
+    echo -e "   ${GREEN}io auth status${NC}  Check provider auth status"
     echo -e "   ${GREEN}io config${NC}       View/edit configuration"
-    echo -e "   ${GREEN}io config edit${NC}  Open config in editor"
     echo -e "   ${GREEN}io gateway install${NC} Install gateway service (messaging + cron)"
     echo -e "   ${GREEN}io update${NC}       Update to latest version"
     echo ""
 
-    echo -e "${CYAN}Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€${NC}"
+    echo -e "${CYAN}â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€${NC}"
     echo ""
-    echo -e "${YELLOW}Î¦Î¦¡ Reload your shell to use 'io' command:${NC}"
+    echo -e "${YELLOW}âš¡ Reload your shell to use 'io' command:${NC}"
     echo ""
-    echo "   source ~/.bashrc   # or ~/.zshrc"
+    LOGIN_SHELL="$(basename "${SHELL:-/bin/bash}")"
+    if [ "$LOGIN_SHELL" = "zsh" ]; then
+        echo "   source ~/.zshrc"
+    elif [ "$LOGIN_SHELL" = "bash" ]; then
+        echo "   source ~/.bashrc"
+    else
+        echo "   source ~/.bashrc   # or ~/.zshrc"
+    fi
     echo ""
 
     # Show Node.js warning if auto-install failed

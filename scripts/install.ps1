@@ -26,7 +26,7 @@ $ErrorActionPreference = "Stop"
 # Configuration
 # ============================================================================
 
-$RepoUrlSsh = "git.com:ever-oli/io.git"
+$RepoUrlSsh = "git@github.com:ever-oli/io.git"
 $RepoUrlHttps = "https://github.com/ever-oli/io.git"
 $PythonVersion = "3.11"
 $NodeVersion = "22"
@@ -37,32 +37,36 @@ $NodeVersion = "22"
 
 function Write-Banner {
     Write-Host ""
-    Write-Host "Î¦”ŒÎ¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”" -ForegroundColor Magenta
-    Write-Host "Î¦”‚             Î¦Î¦Î¦ IO Installer                   Î¦”‚" -ForegroundColor Magenta
-    Write-Host "Î¦”œÎ¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”Î¦" -ForegroundColor Magenta
-    Write-Host "Î¦”‚  An open source AI agent by Most Wanted Research.              Î¦”‚" -ForegroundColor Magenta
-    Write-Host "Î¦””Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”Î¦" -ForegroundColor Magenta
+    Write-Host "â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”" -ForegroundColor Magenta
+    Write-Host "â”‚                    IO Installer                         â”‚" -ForegroundColor Magenta
+    Write-Host "â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤" -ForegroundColor Magenta
+    Write-Host "â”‚  An open source AI coding agent by ever-oli.            â”‚" -ForegroundColor Magenta
+    Write-Host "â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜" -ForegroundColor Magenta
     Write-Host ""
 }
 
 function Write-Info {
     param([string]$Message)
-    Write-Host "Î¦†’ $Message" -ForegroundColor Cyan
+    Write-Host "-> $Message" -ForegroundColor Cyan
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "Î¦œ“ $Message" -ForegroundColor Green
+    Write-Host "+ $Message" -ForegroundColor Green
 }
 
 function Write-Warn {
     param([string]$Message)
-    Write-Host "Î¦Î¦  $Message" -ForegroundColor Yellow
+    Write-Host "! $Message" -ForegroundColor Yellow
 }
 
 function Write-Err {
     param([string]$Message)
-    Write-Host "Î¦œ— $Message" -ForegroundColor Red
+    Write-Host "x $Message" -ForegroundColor Red
+}
+
+function Test-InteractiveTerminal {
+    return [Environment]::UserInteractive
 }
 
 # ============================================================================
@@ -71,16 +75,14 @@ function Write-Err {
 
 function Install-Uv {
     Write-Info "Checking for uv package manager..."
-    
-    # Check if uv is already available
+
     if (Get-Command uv -ErrorAction SilentlyContinue) {
-        $version = uv --version
         $script:UvCmd = "uv"
+        $version = uv --version
         Write-Success "uv found ($version)"
         return $true
     }
-    
-    # Check common install locations
+
     $uvPaths = @(
         "$env:USERPROFILE\.local\bin\uv.exe",
         "$env:USERPROFILE\.cargo\bin\uv.exe"
@@ -93,32 +95,29 @@ function Install-Uv {
             return $true
         }
     }
-    
-    # Install uv
+
     Write-Info "Installing uv (fast Python package manager)..."
     try {
         powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex" 2>&1 | Out-Null
-        
-        # Find the installed binary
+
         $uvExe = "$env:USERPROFILE\.local\bin\uv.exe"
         if (-not (Test-Path $uvExe)) {
             $uvExe = "$env:USERPROFILE\.cargo\bin\uv.exe"
         }
         if (-not (Test-Path $uvExe)) {
-            # Refresh PATH and try again
             $env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";" + [Environment]::GetEnvironmentVariable("Path", "Machine")
             if (Get-Command uv -ErrorAction SilentlyContinue) {
                 $uvExe = (Get-Command uv).Source
             }
         }
-        
+
         if (Test-Path $uvExe) {
             $script:UvCmd = $uvExe
             $version = & $uvExe --version
             Write-Success "uv installed ($version)"
             return $true
         }
-        
+
         Write-Err "uv installed but not found on PATH"
         Write-Info "Try restarting your terminal and re-running"
         return $false
@@ -131,8 +130,7 @@ function Install-Uv {
 
 function Test-Python {
     Write-Info "Checking Python $PythonVersion..."
-    
-    # Let uv find or install Python
+
     try {
         $pythonPath = & $UvCmd python find $PythonVersion 2>$null
         if ($pythonPath) {
@@ -141,11 +139,10 @@ function Test-Python {
             return $true
         }
     } catch { }
-    
-    # Python not found Î¦€” use uv to install it (no admin needed!)
+
     Write-Info "Python $PythonVersion not found, installing via uv..."
     try {
-        $uvOutput = & $UvCmd python install $PythonVersion 2>&1
+        & $UvCmd python install $PythonVersion 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             $pythonPath = & $UvCmd python find $PythonVersion 2>$null
             if ($pythonPath) {
@@ -153,16 +150,9 @@ function Test-Python {
                 Write-Success "Python installed: $ver"
                 return $true
             }
-        } else {
-            Write-Warn "uv python install output:"
-            Write-Host $uvOutput -ForegroundColor DarkGray
         }
-    } catch {
-        Write-Warn "uv python install error: $_"
-    }
+    } catch { }
 
-    # Fallback: check if ANY Python 3.10+ is already available on the system
-    Write-Info "Trying to find any existing Python 3.10+..."
     foreach ($fallbackVer in @("3.12", "3.13", "3.10")) {
         try {
             $pythonPath = & $UvCmd python find $fallbackVer 2>$null
@@ -175,7 +165,6 @@ function Test-Python {
         } catch { }
     }
 
-    # Fallback: try system python
     if (Get-Command python -ErrorAction SilentlyContinue) {
         $sysVer = python --version 2>$null
         if ($sysVer -match "3\.(1[0-9]|[1-9][0-9])") {
@@ -183,7 +172,7 @@ function Test-Python {
             return $true
         }
     }
-    
+
     Write-Err "Failed to install Python $PythonVersion"
     Write-Info "Install Python 3.11 manually, then re-run this script:"
     Write-Info "  https://www.python.org/downloads/"
@@ -193,13 +182,13 @@ function Test-Python {
 
 function Test-Git {
     Write-Info "Checking Git..."
-    
+
     if (Get-Command git -ErrorAction SilentlyContinue) {
         $version = git --version
         Write-Success "Git found ($version)"
         return $true
     }
-    
+
     Write-Err "Git not found"
     Write-Info "Please install Git from:"
     Write-Info "  https://git-scm.com/download/win"
@@ -216,24 +205,21 @@ function Test-Node {
         return $true
     }
 
-    # Check our own managed install from a previous run
-    $managedNode = "$IOHome\node\node.exe"
+    $managedNode = Join-Path $IOHome "node\node.exe"
     if (Test-Path $managedNode) {
         $version = & $managedNode --version
-        $env:Path = "$IOHome\node;$env:Path"
+        $env:Path = "$(Split-Path $managedNode -Parent);$env:Path"
         Write-Success "Node.js $version found (IO-managed)"
         $script:HasNode = $true
         return $true
     }
 
-    Write-Info "Node.js not found Î¦€” installing Node.js $NodeVersion LTS..."
+    Write-Info "Node.js not found, installing Node.js $NodeVersion LTS..."
 
-    # Try winget first (cleanest on modern Windows)
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Info "Installing via winget..."
         try {
             winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
-            # Refresh PATH
             $env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";" + [Environment]::GetEnvironmentVariable("Path", "Machine")
             if (Get-Command node -ErrorAction SilentlyContinue) {
                 $version = node --version
@@ -244,7 +230,6 @@ function Test-Node {
         } catch { }
     }
 
-    # Fallback: download binary zip to ~/.io/node/
     Write-Info "Downloading Node.js $NodeVersion binary..."
     try {
         $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
@@ -254,8 +239,8 @@ function Test-Node {
 
         if ($zipName) {
             $downloadUrl = "${indexUrl}${zipName}"
-            $tmpZip = "$env:TEMP\$zipName"
-            $tmpDir = "$env:TEMP\io-node-extract"
+            $tmpZip = Join-Path $env:TEMP $zipName
+            $tmpDir = Join-Path $env:TEMP "io-node-extract"
 
             Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpZip -UseBasicParsing
             if (Test-Path $tmpDir) { Remove-Item -Recurse -Force $tmpDir }
@@ -311,7 +296,6 @@ function Install-SystemPackages {
 
     if (-not $needRipgrep -and -not $needFfmpeg) { return }
 
-    # Build description and package lists for each package manager
     $descParts = @()
     $wingetPkgs = @()
     $chocoPkgs = @()
@@ -335,7 +319,6 @@ function Install-SystemPackages {
     $hasChoco = Get-Command choco -ErrorAction SilentlyContinue
     $hasScoop = Get-Command scoop -ErrorAction SilentlyContinue
 
-    # Try winget first (most common on modern Windows)
     if ($hasWinget) {
         Write-Info "Installing $description via winget..."
         foreach ($pkg in $wingetPkgs) {
@@ -343,7 +326,6 @@ function Install-SystemPackages {
                 winget install $pkg --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
             } catch { }
         }
-        # Refresh PATH and recheck
         $env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";" + [Environment]::GetEnvironmentVariable("Path", "Machine")
         if ($needRipgrep -and (Get-Command rg -ErrorAction SilentlyContinue)) {
             Write-Success "ripgrep installed"
@@ -358,7 +340,6 @@ function Install-SystemPackages {
         if (-not $needRipgrep -and -not $needFfmpeg) { return }
     }
 
-    # Fallback: choco
     if ($hasChoco -and ($needRipgrep -or $needFfmpeg)) {
         Write-Info "Trying Chocolatey..."
         foreach ($pkg in $chocoPkgs) {
@@ -376,7 +357,6 @@ function Install-SystemPackages {
         }
     }
 
-    # Fallback: scoop
     if ($hasScoop -and ($needRipgrep -or $needFfmpeg)) {
         Write-Info "Trying Scoop..."
         foreach ($pkg in $scoopPkgs) {
@@ -394,7 +374,6 @@ function Install-SystemPackages {
         }
     }
 
-    # Show manual instructions for anything still missing
     if ($needRipgrep) {
         Write-Warn "ripgrep not installed (file search will use findstr fallback)"
         Write-Info "  winget install BurntSushi.ripgrep.MSVC"
@@ -411,83 +390,112 @@ function Install-SystemPackages {
 
 function Install-Repository {
     Write-Info "Installing to $InstallDir..."
-    
+
     if (Test-Path $InstallDir) {
-        if (Test-Path "$InstallDir\.git") {
-            Write-Info "Existing installation found, updating..."
-            Push-Location $InstallDir
-            git -c windows.appendAtomically=false fetch origin
-            git -c windows.appendAtomically=false checkout $Branch
-            git -c windows.appendAtomically=false pull origin $Branch
-            Pop-Location
-        } else {
+        if (-not (Test-Path "$InstallDir\.git")) {
             Write-Err "Directory exists but is not a git repository: $InstallDir"
             Write-Info "Remove it or choose a different directory with -InstallDir"
-            throw "Directory exists but is not a git repository: $InstallDir"
+            throw "Directory exists but is not a git repository"
         }
+
+        Write-Info "Existing installation found, updating..."
+        Push-Location $InstallDir
+        $autoStashRef = ""
+        $status = git status --porcelain
+        if ($status) {
+            $stashName = "io-install-autostash-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+            Write-Info "Local changes detected, stashing before update..."
+            git stash push --include-untracked -m $stashName | Out-Null
+            $autoStashRef = (git rev-parse --verify refs/stash 2>$null)
+        }
+
+        git -c windows.appendAtomically=false fetch origin
+        git -c windows.appendAtomically=false checkout $Branch
+        git -c windows.appendAtomically=false pull --ff-only origin $Branch
+
+        if ($autoStashRef) {
+            $restoreNow = $true
+            if (Test-InteractiveTerminal) {
+                Write-Host ""
+                Write-Warn "Local changes were stashed before updating."
+                Write-Warn "Restoring them may reapply local customizations onto the updated codebase."
+                $response = Read-Host "Restore local changes now? [Y/n]"
+                if ($response -and $response -notmatch '^(?i:y|yes)$') {
+                    $restoreNow = $false
+                }
+            }
+
+            if ($restoreNow) {
+                Write-Info "Restoring local changes..."
+                git stash apply $autoStashRef | Out-Null
+                if ($LASTEXITCODE -eq 0) {
+                    git stash drop $autoStashRef | Out-Null
+                    Write-Warn "Local changes were restored on top of the updated codebase."
+                    Write-Warn "Review git diff / git status if IO behaves unexpectedly."
+                } else {
+                    throw "Update succeeded, but restoring local changes failed. Your changes are still preserved in git stash."
+                }
+            } else {
+                Write-Info "Skipped restoring local changes."
+                Write-Info "Your changes are still preserved in git stash."
+                Write-Info "Restore manually with: git stash apply $autoStashRef"
+            }
+        }
+        Pop-Location
     } else {
         $cloneSuccess = $false
 
-        # Fix Windows git "copy-fd: write returned: Invalid argument" error.
-        # Git for Windows can fail on atomic file operations (hook templates,
-        # config lock files) due to antivirus, OneDrive, or NTFS filter drivers.
-        # The -c flag injects config before any file I/O occurs.
         Write-Info "Configuring git for Windows compatibility..."
         $env:GIT_CONFIG_COUNT = "1"
         $env:GIT_CONFIG_KEY_0 = "windows.appendAtomically"
         $env:GIT_CONFIG_VALUE_0 = "false"
         git config --global windows.appendAtomically false 2>$null
 
-        # Try SSH first, then HTTPS, with -c flag for atomic write fix
         Write-Info "Trying SSH clone..."
         $env:GIT_SSH_COMMAND = "ssh -o BatchMode=yes -o ConnectTimeout=5"
         try {
-            git -c windows.appendAtomically=false clone --branch $Branch --recurse-submodules $RepoUrlSsh $InstallDir
+            git -c windows.appendAtomically=false clone --branch $Branch $RepoUrlSsh $InstallDir
             if ($LASTEXITCODE -eq 0) { $cloneSuccess = $true }
         } catch { }
         $env:GIT_SSH_COMMAND = $null
-        
+
         if (-not $cloneSuccess) {
             if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue }
             Write-Info "SSH failed, trying HTTPS..."
             try {
-                git -c windows.appendAtomically=false clone --branch $Branch --recurse-submodules $RepoUrlHttps $InstallDir
+                git -c windows.appendAtomically=false clone --branch $Branch $RepoUrlHttps $InstallDir
                 if ($LASTEXITCODE -eq 0) { $cloneSuccess = $true }
             } catch { }
         }
 
-        # Fallback: download ZIP archive (bypasses git file I/O issues entirely)
         if (-not $cloneSuccess) {
             if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue }
-            Write-Warn "Git clone failed Î¦€” downloading ZIP archive instead..."
+            Write-Warn "Git clone failed, downloading ZIP archive instead..."
             try {
                 $zipUrl = "https://github.com/ever-oli/io/archive/refs/heads/$Branch.zip"
-                $zipPath = "$env:TEMP\io-$Branch.zip"
-                $extractPath = "$env:TEMP\io-extract"
-                
+                $zipPath = Join-Path $env:TEMP "io-$Branch.zip"
+                $extractPath = Join-Path $env:TEMP "io-extract"
+
                 Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
                 if (Test-Path $extractPath) { Remove-Item -Recurse -Force $extractPath }
                 Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-                
-                # GitHub ZIPs extract to repo-branch/ subdirectory
+
                 $extractedDir = Get-ChildItem $extractPath -Directory | Select-Object -First 1
                 if ($extractedDir) {
-                    New-Item -ItemType Directory -Force -Path (Split-Path $InstallDir) -ErrorAction SilentlyContinue | Out-Null
+                    New-Item -ItemType Directory -Force -Path (Split-Path $InstallDir) | Out-Null
                     Move-Item $extractedDir.FullName $InstallDir -Force
                     Write-Success "Downloaded and extracted"
-                    
-                    # Initialize git repo so updates work later
+
                     Push-Location $InstallDir
                     git -c windows.appendAtomically=false init 2>$null
                     git -c windows.appendAtomically=false config windows.appendAtomically false 2>$null
                     git remote add origin $RepoUrlHttps 2>$null
                     Pop-Location
                     Write-Success "Git repo initialized for future updates"
-                    
+
                     $cloneSuccess = $true
                 }
-                
-                # Cleanup temp files
+
                 Remove-Item -Force $zipPath -ErrorAction SilentlyContinue
                 Remove-Item -Recurse -Force $extractPath -ErrorAction SilentlyContinue
             } catch {
@@ -499,21 +507,19 @@ function Install-Repository {
             throw "Failed to download repository (tried git clone SSH, HTTPS, and ZIP)"
         }
     }
-    
-    # Set per-repo config (harmless if it fails)
+
     Push-Location $InstallDir
     git -c windows.appendAtomically=false config windows.appendAtomically false 2>$null
 
-    # Ensure submodules are initialized and updated
-    Write-Info "Initializing submodules (mini-swe-agent, tinker-atropos)..."
-    git -c windows.appendAtomically=false submodule update --init --recursive 2>$null
+    Write-Info "Initializing mini-swe-agent submodule (terminal backend)..."
+    git -c windows.appendAtomically=false submodule update --init mini-swe-agent 2>$null
     if ($LASTEXITCODE -ne 0) {
-        Write-Warn "Submodule init failed (terminal/RL tools may need manual setup)"
+        Write-Warn "mini-swe-agent init failed (terminal tools may need manual setup)"
     } else {
-        Write-Success "Submodules ready"
+        Write-Success "Submodule ready"
     }
     Pop-Location
-    
+
     Write-Success "Repository ready"
 }
 
@@ -522,44 +528,41 @@ function Install-Venv {
         Write-Info "Skipping virtual environment (-NoVenv)"
         return
     }
-    
+
     Write-Info "Creating virtual environment with Python $PythonVersion..."
-    
     Push-Location $InstallDir
-    
     if (Test-Path "venv") {
         Write-Info "Virtual environment already exists, recreating..."
         Remove-Item -Recurse -Force "venv"
     }
-    
-    # uv creates the venv and pins the Python version in one step
     & $UvCmd venv venv --python $PythonVersion
-    
     Pop-Location
-    
+
     Write-Success "Virtual environment ready (Python $PythonVersion)"
 }
 
 function Install-Dependencies {
     Write-Info "Installing dependencies..."
-    
     Push-Location $InstallDir
-    
+
     if (-not $NoVenv) {
-        # Tell uv to install into our venv (no activation needed)
         $env:VIRTUAL_ENV = "$InstallDir\venv"
     }
-    
-    # Install main package with all extras
+
     try {
         & $UvCmd pip install -e ".[all]" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "full install failed" }
     } catch {
-        & $UvCmd pip install -e "." | Out-Null
+        Write-Warn "Full install (.[all]) failed, trying base install..."
+        & $UvCmd pip install -e "." 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Pop-Location
+            throw "Package installation failed"
+        }
     }
-    
+
     Write-Success "Main package installed"
-    
-    # Install submodules
+
     Write-Info "Installing mini-swe-agent (terminal tool backend)..."
     if (Test-Path "mini-swe-agent\pyproject.toml") {
         try {
@@ -569,82 +572,78 @@ function Install-Dependencies {
             Write-Warn "mini-swe-agent install failed (terminal tools may not work)"
         }
     } else {
-        Write-Warn "mini-swe-agent not found (run: git submodule update --init)"
+        Write-Warn "mini-swe-agent not found (run: git submodule update --init mini-swe-agent)"
     }
-    
-    Write-Info "Installing tinker-atropos (RL training backend)..."
+
     if (Test-Path "tinker-atropos\pyproject.toml") {
-        try {
-            & $UvCmd pip install -e ".\tinker-atropos" 2>&1 | Out-Null
-            Write-Success "tinker-atropos installed"
-        } catch {
-            Write-Warn "tinker-atropos install failed (RL tools may not work)"
-        }
-    } else {
-        Write-Warn "tinker-atropos not found (run: git submodule update --init)"
+        Write-Info "tinker-atropos submodule found, skipping install (optional, for RL training)"
+        Write-Info "  To install: $UvCmd pip install -e .\tinker-atropos"
     }
-    
+
     Pop-Location
-    
     Write-Success "All dependencies installed"
 }
 
 function Set-PathVariable {
     Write-Info "Setting up io command..."
-    
+
     if ($NoVenv) {
-        $ioBin = "$InstallDir"
+        $ioCmd = (Get-Command io -ErrorAction SilentlyContinue)
+        if (-not $ioCmd) {
+            Write-Warn "io not found on PATH after install"
+            return
+        }
+        $ioBin = Split-Path $ioCmd.Source -Parent
+        $ioExe = $ioCmd.Source
     } else {
         $ioBin = "$InstallDir\venv\Scripts"
+        $ioExe = "$ioBin\io.exe"
+        if (-not (Test-Path $ioExe)) {
+            Write-Warn "io entry point not found at $ioExe"
+            Write-Info "This usually means the pip install did not complete successfully."
+            Write-Info "Try: cd $InstallDir && uv pip install -e '.[all]'"
+            return
+        }
     }
-    
-    # Add the venv Scripts dir to user PATH so io is globally available
-    # On Windows, the io.exe in venv\Scripts\ has the venv Python baked in
+
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    
     if ($currentPath -notlike "*$ioBin*") {
-        [Environment]::SetEnvironmentVariable(
-            "Path",
-            "$ioBin;$currentPath",
-            "User"
-        )
+        [Environment]::SetEnvironmentVariable("Path", "$ioBin;$currentPath", "User")
         Write-Success "Added to user PATH: $ioBin"
     } else {
         Write-Info "PATH already configured"
     }
-    
-    # Set IO_HOME so the Python code finds config/data in the right place.
-    # Only needed on Windows where we install to %LOCALAPPDATA%\io instead
-    # of the Unix default ~/.io
+
     $currentIOHome = [Environment]::GetEnvironmentVariable("IO_HOME", "User")
     if (-not $currentIOHome -or $currentIOHome -ne $IOHome) {
         [Environment]::SetEnvironmentVariable("IO_HOME", $IOHome, "User")
         Write-Success "Set IO_HOME=$IOHome"
     }
+
     $env:IO_HOME = $IOHome
-    
-    # Update current session
     $env:Path = "$ioBin;$env:Path"
-    
+
     Write-Success "io command ready"
 }
 
 function Copy-ConfigTemplates {
     Write-Info "Setting up configuration files..."
-    
-    # Create ~/.io directory structure
-    New-Item -ItemType Directory -Force -Path "$IOHome\cron" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\sessions" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\logs" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\pairing" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\hooks" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\image_cache" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\audio_cache" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\memories" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\skills" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$IOHome\whatsapp\session" | Out-Null
-    
-    # Create .env
+
+    foreach ($path in @(
+        "$IOHome\cron",
+        "$IOHome\sessions",
+        "$IOHome\logs",
+        "$IOHome\pairing",
+        "$IOHome\hooks",
+        "$IOHome\image_cache",
+        "$IOHome\audio_cache",
+        "$IOHome\memories",
+        "$IOHome\skills",
+        "$IOHome\whatsapp\session"
+    )) {
+        New-Item -ItemType Directory -Force -Path $path | Out-Null
+    }
+
     $envPath = "$IOHome\.env"
     if (-not (Test-Path $envPath)) {
         $examplePath = "$InstallDir\.env.example"
@@ -658,8 +657,7 @@ function Copy-ConfigTemplates {
     } else {
         Write-Info "~/.io/.env already exists, keeping it"
     }
-    
-    # Create config.yaml
+
     $configPath = "$IOHome\config.yaml"
     if (-not (Test-Path $configPath)) {
         $examplePath = "$InstallDir\cli-config.yaml.example"
@@ -670,14 +668,13 @@ function Copy-ConfigTemplates {
     } else {
         Write-Info "~/.io/config.yaml already exists, keeping it"
     }
-    
-    # Create SOUL.md if it doesn't exist (global persona file)
+
     $soulPath = "$IOHome\SOUL.md"
     if (-not (Test-Path $soulPath)) {
         @"
 # IO Persona
 
-<!-- 
+<!--
 This file defines the agent's personality and tone.
 The agent will embody whatever you write here.
 Edit this to customize how IO communicates with you.
@@ -693,18 +690,16 @@ Delete the contents (or this file) to use the default personality.
 "@ | Set-Content -Path $soulPath -Encoding UTF8
         Write-Success "Created ~/.io/SOUL.md (edit to customize personality)"
     }
-    
+
     Write-Success "Configuration directory ready: ~/.io/"
-    
-    # Seed bundled skills into ~/.io/skills/ (manifest-based, one-time per skill)
-    Write-Info "Syncing bundled skills to ~/.io/skills/ ..."
+
     $pythonExe = "$InstallDir\venv\Scripts\python.exe"
     if (Test-Path $pythonExe) {
+        Write-Info "Syncing bundled skills to ~/.io/skills/ ..."
         try {
             & $pythonExe "$InstallDir\tools\skills_sync.py" 2>$null
             Write-Success "Skills synced to ~/.io/skills/"
         } catch {
-            # Fallback: simple directory copy
             $bundledSkills = "$InstallDir\skills"
             $userSkills = "$IOHome\skills"
             if ((Test-Path $bundledSkills) -and -not (Get-ChildItem $userSkills -Exclude '.bundled_manifest' -ErrorAction SilentlyContinue)) {
@@ -720,9 +715,9 @@ function Install-NodeDeps {
         Write-Info "Skipping Node.js dependencies (Node not installed)"
         return
     }
-    
+
     Push-Location $InstallDir
-    
+
     if (Test-Path "package.json") {
         Write-Info "Installing Node.js dependencies (browser tools)..."
         try {
@@ -731,9 +726,16 @@ function Install-NodeDeps {
         } catch {
             Write-Warn "npm install failed (browser tools may not work)"
         }
+
+        Write-Info "Installing browser engine (Playwright Chromium)..."
+        try {
+            npx playwright install chromium 2>&1 | Out-Null
+            Write-Success "Browser engine installed"
+        } catch {
+            Write-Warn "Playwright browser install failed (browser tools may not work)"
+        }
     }
-    
-    # Install WhatsApp bridge dependencies
+
     $bridgeDir = "$InstallDir\scripts\whatsapp-bridge"
     if (Test-Path "$bridgeDir\package.json") {
         Write-Info "Installing WhatsApp bridge dependencies..."
@@ -746,30 +748,22 @@ function Install-NodeDeps {
         }
         Pop-Location
     }
-    
+
     Pop-Location
 }
 
-function Invoke-SetupWizard {
+function Show-PostInstallGuidance {
     if ($SkipSetup) {
-        Write-Info "Skipping setup wizard (-SkipSetup)"
+        Write-Info "Skipping post-install setup guidance (-SkipSetup)"
         return
     }
-    
+
     Write-Host ""
-    Write-Info "Starting setup wizard..."
+    Write-Info "Next steps:"
     Write-Host ""
-    
-    Push-Location $InstallDir
-    
-    # Run io setup using the venv Python directly (no activation needed)
-    if (-not $NoVenv) {
-        & ".\venv\Scripts\python.exe" -m io_cli.main setup
-    } else {
-        python -m io_cli.main setup
-    }
-    
-    Pop-Location
+    Write-Info "1. Add provider credentials in ~/.io/.env"
+    Write-Info "2. Optionally adjust model/provider defaults in ~/.io/config.yaml"
+    Write-Info "3. Start IO with: io"
 }
 
 function Start-GatewayIfConfigured {
@@ -782,43 +776,42 @@ function Start-GatewayIfConfigured {
         $match = $content | Where-Object { $_ -match "^${var}=.+" -and $_ -notmatch "your-token-here" }
         if ($match) { $hasMessaging = $true; break }
     }
-
     if (-not $hasMessaging) { return }
+
+    Write-Host ""
+    Write-Info "Messaging platform token detected!"
+    Write-Info "The gateway needs to be running for IO to send and receive messages."
 
     $ioCmd = "$InstallDir\venv\Scripts\io.exe"
     if (-not (Test-Path $ioCmd)) {
         $ioCmd = "io"
     }
 
-    # If WhatsApp is enabled but not yet paired, run foreground for QR scan
     $whatsappEnabled = $content | Where-Object { $_ -match "^WHATSAPP_ENABLED=true" }
     $whatsappSession = "$IOHome\whatsapp\session\creds.json"
-    if ($whatsappEnabled -and -not (Test-Path $whatsappSession)) {
+    if ($whatsappEnabled -and -not (Test-Path $whatsappSession) -and (Test-InteractiveTerminal)) {
         Write-Host ""
         Write-Info "WhatsApp is enabled but not yet paired."
         Write-Info "Running 'io whatsapp' to pair via QR code..."
         Write-Host ""
         $response = Read-Host "Pair WhatsApp now? [Y/n]"
-        if ($response -eq "" -or $response -match "^[Yy]") {
-            try {
-                & $ioCmd whatsapp
-            } catch {
-                # Expected after pairing completes
-            }
+        if (-not $response -or $response -match "^[Yy]") {
+            try { & $ioCmd whatsapp } catch { }
         }
     }
 
-    Write-Host ""
-    Write-Info "Messaging platform token detected!"
-    Write-Info "The gateway handles messaging platforms and cron job execution."
+    if (-not (Test-InteractiveTerminal)) {
+        Write-Info "Gateway setup skipped (no terminal available). Run 'io gateway install' later."
+        return
+    }
+
     Write-Host ""
     $response = Read-Host "Would you like to start the gateway now? [Y/n]"
-
-    if ($response -eq "" -or $response -match "^[Yy]") {
+    if (-not $response -or $response -match "^[Yy]") {
         Write-Info "Starting gateway in background..."
         try {
             $logFile = "$IOHome\logs\gateway.log"
-            Start-Process -FilePath $ioCmd -ArgumentList "gateway" `
+            Start-Process -FilePath $ioCmd -ArgumentList "gateway", "run" `
                 -RedirectStandardOutput $logFile `
                 -RedirectStandardError "$IOHome\logs\gateway-error.log" `
                 -WindowStyle Hidden
@@ -826,22 +819,21 @@ function Start-GatewayIfConfigured {
             Write-Info "Logs: $logFile"
             Write-Info "To stop: close the gateway process from Task Manager"
         } catch {
-            Write-Warn "Failed to start gateway. Run manually: io gateway"
+            Write-Warn "Failed to start gateway. Run manually: io gateway run"
         }
     } else {
-        Write-Info "Skipped. Start the gateway later with: io gateway"
+        Write-Info "Skipped. Start the gateway later with: io gateway run"
     }
 }
 
 function Write-Completion {
     Write-Host ""
-    Write-Host "Î¦”ŒÎ¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”" -ForegroundColor Green
-    Write-Host "Î¦”‚              Î¦œ“ Installation Complete!                   Î¦”‚" -ForegroundColor Green
-    Write-Host "Î¦””Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”Î¦" -ForegroundColor Green
+    Write-Host "â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”" -ForegroundColor Green
+    Write-Host "â”‚               Installation Complete!                   â”‚" -ForegroundColor Green
+    Write-Host "â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜" -ForegroundColor Green
     Write-Host ""
-    
-    # Show file locations
-    Write-Host "ğŸ“ Your files:" -ForegroundColor Cyan
+
+    Write-Host "Your files (all in ~/.io/):" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "   Config:    " -NoNewline -ForegroundColor Yellow
     Write-Host "$IOHome\config.yaml"
@@ -852,37 +844,35 @@ function Write-Completion {
     Write-Host "   Code:      " -NoNewline -ForegroundColor Yellow
     Write-Host "$IOHome\io\"
     Write-Host ""
-    
-    Write-Host "Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€" -ForegroundColor Cyan
+
+    Write-Host "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "ğŸÎ¦€ Commands:" -ForegroundColor Cyan
+    Write-Host "Commands:" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "   io              " -NoNewline -ForegroundColor Green
+    Write-Host "   io                " -NoNewline -ForegroundColor Green
     Write-Host "Start chatting"
-    Write-Host "   io setup        " -NoNewline -ForegroundColor Green
-    Write-Host "Configure API keys & settings"
-    Write-Host "   io config       " -NoNewline -ForegroundColor Green
+    Write-Host "   io auth status    " -NoNewline -ForegroundColor Green
+    Write-Host "Check provider auth status"
+    Write-Host "   io config         " -NoNewline -ForegroundColor Green
     Write-Host "View/edit configuration"
-    Write-Host "   io config edit  " -NoNewline -ForegroundColor Green
-    Write-Host "Open config in editor"
-    Write-Host "   io gateway      " -NoNewline -ForegroundColor Green
-    Write-Host "Start messaging gateway (Telegram, Discord, etc.)"
-    Write-Host "   io update       " -NoNewline -ForegroundColor Green
+    Write-Host "   io gateway install" -NoNewline -ForegroundColor Green
+    Write-Host " Install gateway service scope"
+    Write-Host "   io update         " -NoNewline -ForegroundColor Green
     Write-Host "Update to latest version"
     Write-Host ""
-    
-    Write-Host "Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€Î¦”€" -ForegroundColor Cyan
+
+    Write-Host "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Î¦Î¦¡ Restart your terminal for PATH changes to take effect" -ForegroundColor Yellow
+    Write-Host "Restart your terminal for PATH changes to take effect" -ForegroundColor Yellow
     Write-Host ""
-    
+
     if (-not $HasNode) {
         Write-Host "Note: Node.js could not be installed automatically." -ForegroundColor Yellow
         Write-Host "Browser tools need Node.js. Install manually:" -ForegroundColor Yellow
         Write-Host "  https://nodejs.org/en/download/" -ForegroundColor Yellow
         Write-Host ""
     }
-    
+
     if (-not $HasRipgrep) {
         Write-Host "Note: ripgrep (rg) was not installed. For faster file search:" -ForegroundColor Yellow
         Write-Host "  winget install BurntSushi.ripgrep.MSVC" -ForegroundColor Yellow
@@ -896,28 +886,25 @@ function Write-Completion {
 
 function Main {
     Write-Banner
-    
-    if (-not (Install-Uv)) { throw "uv installation failed Î¦€” cannot continue" }
-    if (-not (Test-Python)) { throw "Python $PythonVersion not available Î¦€” cannot continue" }
-    if (-not (Test-Git)) { throw "Git not found Î¦€” install from https://git-scm.com/download/win" }
-    Test-Node              # Auto-installs if missing
-    Install-SystemPackages  # ripgrep + ffmpeg in one step
-    
+
+    if (-not (Install-Uv)) { throw "uv installation failed; cannot continue" }
+    if (-not (Test-Python)) { throw "Python $PythonVersion not available; cannot continue" }
+    if (-not (Test-Git)) { throw "Git not found; install from https://git-scm.com/download/win" }
+    Test-Node
+    Install-SystemPackages
+
     Install-Repository
     Install-Venv
     Install-Dependencies
     Install-NodeDeps
     Set-PathVariable
     Copy-ConfigTemplates
-    Invoke-SetupWizard
+    Show-PostInstallGuidance
     Start-GatewayIfConfigured
-    
+
     Write-Completion
 }
 
-# Wrap in try/catch so errors don't kill the terminal when run via:
-#   irm https://...install.ps1 | iex
-# (exit/throw inside iex kills the entire PowerShell session)
 try {
     Main
 } catch {

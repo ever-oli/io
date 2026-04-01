@@ -53,6 +53,9 @@ from .skills_hub import SkillsHub
 from .session import SessionManager
 from .status import render_status_text, status_report
 from .toolsets import enabled_tools_for_platform, set_toolset_enabled, toolsets_status
+from .upgrade import cmd_upgrade
+from .edit_diff_preview import capture_local_edit_snapshot, summarize_diff_lines
+from .lifecycle_events import format_lifecycle_event_lines
 from .tool_trace import format_tool_trace_lines, should_trace_tool
 from .tools_config import toolsets_command
 from .tools.registry import get_tool_registry
@@ -546,6 +549,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("commands", help="List slash commands from the ported IO registry")
 
+    update = subparsers.add_parser("update", help="Update IO to the latest installed git checkout or package release")
+    update.add_argument("--force", action="store_true", help="Force reinstall even if already current")
+    update.add_argument("--dry-run", action="store_true", help="Show what would run without changing anything")
+
     soul = subparsers.add_parser(
         "soul",
         help="Show which SOUL/soul.md is loaded (debug persona for chat/gateway)",
@@ -642,6 +649,8 @@ def _run_repl(args: argparse.Namespace) -> int:
         if isinstance(display_cfg.get("tool_trace_suppress_tools"), list)
         else []
     )
+    show_inline_diffs = bool(display_cfg.get("inline_diffs", True))
+    chat_cwd = args.cwd.resolve()
     ui.console.print(
         build_welcome_banner(
             ui.console,
@@ -674,6 +683,11 @@ def _run_repl(args: argparse.Namespace) -> int:
             "(like many shells).[/]"
         )
     pending_followup: str | None = None
+
+    def _queue_followup(next_prompt: str) -> None:
+        nonlocal pending_followup
+        pending_followup = next_prompt
+
     while True:
         try:
             if pending_followup is not None:
@@ -703,6 +717,7 @@ def _run_repl(args: argparse.Namespace) -> int:
                     load_extensions=not args.no_extensions,
                     on_event=None,
                     repl_interactive=True,
+                    queue_followup=_queue_followup,
                 )
             )
             if handled:
@@ -714,6 +729,7 @@ def _run_repl(args: argparse.Namespace) -> int:
         ui.console.print("[dim]Φ thinking...[/]")
         stream_state: dict[str, bool] = {"had_delta": False, "got_token_delta": False}
         tool_started_at: dict[str, float] = {}
+        tool_snapshots: dict[str, object] = {}
         interrupt_registry: dict[str, object] = {}
 
         def _sigint(_signum: int, _frame: object | None) -> None:
@@ -732,6 +748,9 @@ def _run_repl(args: argparse.Namespace) -> int:
                         thinking_status.update(
                             f"[bold #FFBF00]Φ thinking...[/] [dim]turn {iteration}[/]"
                         )
+                    elif event_type in {"context_compacted", "runtime_route"}:
+                        for line in format_lifecycle_event_lines(event_type, payload):
+                            ui.console.print(line, style="dim")
                     elif event_type == "message_delta" and show_stream:
                         delta = str(payload.get("delta", "") or "")
                         if delta:
@@ -739,10 +758,20 @@ def _run_repl(args: argparse.Namespace) -> int:
                             stream_state["had_delta"] = True
                             stream_state["got_token_delta"] = True
                     elif event_type == "tool_call_start":
+                        tool = str(payload.get("tool", "tool"))
+                        tool_call_id = str(payload.get("tool_call_id", "") or tool)
+                        arguments = payload.get("arguments")
+                        if show_inline_diffs and isinstance(arguments, dict):
+                            snapshot = capture_local_edit_snapshot(
+                                tool,
+                                arguments,
+                                home=home,
+                                cwd=chat_cwd,
+                            )
+                            if snapshot is not None:
+                                tool_snapshots[tool_call_id] = snapshot
                         if show_tool_trace:
-                            tool = str(payload.get("tool", "tool"))
-                            arguments = payload.get("arguments")
-                            tool_started_at[tool] = time.monotonic()
+                            tool_started_at[tool_call_id] = time.monotonic()
                             if isinstance(arguments, dict) and should_trace_tool(
                                 tool, suppress_tools=tool_trace_suppress
                             ):
@@ -765,12 +794,13 @@ def _run_repl(args: argparse.Namespace) -> int:
                         ui.console.print(str(payload.get("delta", "") or ""), end="", style="dim")
                     elif event_type == "tool_call_end":
                         tool = str(payload.get("tool", "tool"))
+                        tool_call_id = str(payload.get("tool_call_id", "") or tool)
                         if (
                             show_tool_trace
                             and tool_trace_show_duration
                             and should_trace_tool(tool, suppress_tools=tool_trace_suppress)
                         ):
-                            started = tool_started_at.get(tool)
+                            started = tool_started_at.get(tool_call_id)
                             duration = (time.monotonic() - started) if started is not None else None
                             done_line = format_tool_trace_lines(
                                 tool,
@@ -781,6 +811,14 @@ def _run_repl(args: argparse.Namespace) -> int:
                                 duration_seconds=duration,
                             )[0]
                             ui.console.print(done_line + " done", style="dim")
+                        if show_inline_diffs:
+                            snapshot = tool_snapshots.pop(tool_call_id, None)
+                            for line in summarize_diff_lines(
+                                tool,
+                                str(payload.get("content", "") or ""),
+                                snapshot=snapshot,
+                            ):
+                                ui.console.print(line, style="dim")
                         thinking_status.update(
                             f"[bold #FFBF00]Φ thinking...[/] [dim]finished {tool}[/]"
                         )
@@ -1368,6 +1406,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "commands":
         print(json.dumps(COMMANDS_BY_CATEGORY, indent=2, sort_keys=True))
         return 0
+
+    if args.command == "update":
+        update_argv: list[str] = []
+        if args.force:
+            update_argv.append("--force")
+        if args.dry_run:
+            update_argv.append("--dry-run")
+        return cmd_upgrade(update_argv, home=selected_home)
 
     if args.command == "research":
         from .trajectory_export import (

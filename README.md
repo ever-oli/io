@@ -8,6 +8,56 @@ A professional-grade AI coding harness engineered for the modern development wor
 
 **Version:** `0.3.0` — Production-ready
 
+## Quick Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ever-oli/io/main/scripts/install.sh | bash
+```
+
+Works on Linux, macOS, and WSL2. The installer handles `uv`, Python, Node.js, dependencies, the git checkout in `~/.io/io`, and the `io` command. No prerequisites except git.
+
+On Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/ever-oli/io/main/scripts/install.ps1 | iex
+```
+
+Provider credentials live in `~/.io/.env`, and default model/runtime settings live in `~/.io/config.yaml`.
+
+After install:
+
+```bash
+source ~/.bashrc    # reload shell (or: source ~/.zshrc)
+io                  # start chatting
+```
+
+## Getting Started
+
+```bash
+io                  # Interactive CLI
+io auth status      # Check provider auth status
+io config show      # Inspect merged config
+io gateway setup    # Configure messaging defaults
+io gateway run      # Run the messaging gateway
+io update           # Update to the latest version
+io doctor           # Print a diagnostic report
+```
+
+To update an install created this way:
+
+```bash
+io update
+```
+
+## Source / Dev Install
+
+```bash
+uv sync
+uv run io --help
+uv run io chat
+uv run pytest
+```
+
 ## Overview
 
 IO is an advanced AI coding assistant designed for professional developers who demand precision, flexibility, and comprehensive tooling. Built on a robust 8-package architecture, IO delivers a complete development environment that seamlessly integrates AI capabilities into existing workflows.
@@ -32,20 +82,6 @@ IO synthesizes proven patterns from industry-leading tools while maintaining arc
 | `io-pods` | Local pod lifecycle management and vLLM orchestration |
 | `io-bot` | Telegram bot, morning briefings, notification system |
 | `io-swarm` | Workflow swarm management, Lean formalization, background agents |
-
-## Quick Start
-
-```bash
-# Install dependencies
-uv sync
-
-# Launch the interactive CLI
-uv run io --help
-uv run io chat
-
-# Run the test suite
-uv run pytest
-```
 
 ## Core Capabilities
 
@@ -340,7 +376,7 @@ tests/             # Test suite (50+ files)
 scripts/           # Automation
 ```
 
-**Global installation:**
+**Tool install from the current checkout:**
 ```bash
 uv tool install .
 ```
