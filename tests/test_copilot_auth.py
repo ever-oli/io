@@ -81,7 +81,7 @@ def test_gh_cli_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
         assert resolve_copilot_api_key(store) == "gho_from_cli"
 
 
-def test_gh_cli_classic_pat_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_gh_cli_classic_pat_warns_and_returns_none(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     home = tmp_path / "io"
     home.mkdir()
     store = AuthStore(home=home, env={})
@@ -89,5 +89,6 @@ def test_gh_cli_classic_pat_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.delenv("GH_TOKEN", raising=False)
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     with patch("io_ai.copilot_auth._try_gh_cli_token", return_value="ghp_classic"):
-        with pytest.raises(ValueError, match="unsupported"):
-            resolve_copilot_api_key(store)
+        # Should return None and log warning instead of raising ValueError
+        result = resolve_copilot_api_key(store)
+        assert result is None

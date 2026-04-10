@@ -114,7 +114,8 @@ def test_memory_re_head_matches_committed_golden_d32(tmp_path: Path) -> None:
     n.remember("k", "v")
     n._rebuild()
     got = [float(x) for x in n._E[0].banks[0].memory[0][:8]]
-    assert got == want
+    # Use approx comparison to handle floating point precision differences across platforms
+    assert got == pytest.approx(want, abs=1e-15)
 
 
 @pytest.mark.skipif(not shutil.which("node"), reason="node not on PATH")

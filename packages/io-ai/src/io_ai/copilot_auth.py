@@ -122,7 +122,8 @@ def resolve_copilot_api_key(store: AuthStore, *, config: dict[str, Any] | None =
     if gh_tok:
         valid, msg = validate_copilot_token(gh_tok)
         if not valid:
-            raise ValueError(f"Token from `gh auth token` is unsupported: {msg}")
+            logger.warning("Ignoring token from `gh auth token`: %s", msg)
+            return None
         return gh_tok.strip()
 
     return None
