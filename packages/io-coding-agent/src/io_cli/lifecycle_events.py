@@ -11,17 +11,17 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 
-def format_lifecycle_event_lines(event: dict[str, Any]) -> list[str]:
+def format_lifecycle_event_lines(event_type: str, payload: dict[str, Any]) -> list[str]:
     """Format a lifecycle event into display lines.
     
     Args:
-        event: Lifecycle event dictionary with type, message, etc.
+        event_type: Type of lifecycle event
+        payload: Event payload dictionary
         
     Returns:
         List of formatted display lines
     """
-    event_type = event.get("type", "unknown")
-    message = event.get("message", "")
+    message = payload.get("message", "")
     
     lines: list[str] = []
     
@@ -36,14 +36,20 @@ def format_lifecycle_event_lines(event: dict[str, Any]) -> list[str]:
     elif event_type == "info":
         lines.append(f"ℹ {message}")
     elif event_type == "progress":
-        step = event.get("step", 0)
-        total = event.get("total", 1)
+        step = payload.get("step", 0)
+        total = payload.get("total", 1)
         lines.append(f"⋯ {message} ({step}/{total})")
+    elif event_type == "context_compacted":
+        lines.append(f"📦 Context compacted")
+    elif event_type == "runtime_route":
+        runtime = payload.get("runtime", "unknown")
+        lines.append(f"🔧 Runtime: {runtime}")
     else:
-        lines.append(f"  {message}")
+        if message:
+            lines.append(f"  {message}")
     
     # Add any extra details
-    if details := event.get("details"):
+    if details := payload.get("details"):
         for detail in details if isinstance(details, list) else [details]:
             lines.append(f"    {detail}")
     
