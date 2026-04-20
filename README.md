@@ -4,9 +4,13 @@
 
 # IO
 
-A professional-grade AI coding harness engineered for the modern development workflow.
+A professional-grade AI coding harness — **Py + Hermes fusion**.
+
+**What this is:** The `py` reference port merged with Hermes gateway, cron, sessions, skills, and 55+ tools. Production system, not the clean reference.
 
 **Version:** `0.3.0` — Production-ready
+
+> 📚 **Looking for the clean reference port?** See [`ever-oli/py`](https://github.com/ever-oli/py) — 100% faithful TypeScript→Python port with no extras.
 
 ## Quick Install
 
