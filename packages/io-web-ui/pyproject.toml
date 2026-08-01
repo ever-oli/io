@@ -8,6 +8,7 @@ dependencies = [
   "io-ai",
   "io-coding-agent",
   "io-tui",
+  "posthog>=7.29.0",
   "uvicorn>=0.34.0",
 ]
 

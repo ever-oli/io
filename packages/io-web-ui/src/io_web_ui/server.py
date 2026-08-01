@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,8 @@ from pydantic import BaseModel, Field
 
 from io_cli.main import format_prompt_result, run_prompt
 from io_cli.session import SessionManager
+
+from .analytics import capture, capture_exception, initialize_posthog
 
 
 HTML = """<!doctype html>
@@ -96,8 +99,16 @@ def _serialize_prompt_result(result) -> dict[str, Any]:
     }
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    posthog = initialize_posthog()
+    yield
+    if posthog is not None:
+        posthog.shutdown()
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="IO Web UI")
+    app = FastAPI(title="IO Web UI", lifespan=_lifespan)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -110,6 +121,7 @@ def create_app() -> FastAPI:
     @app.get("/api/sessions")
     async def list_sessions(cwd: str = Query(default_factory=lambda: str(Path.cwd()))) -> dict[str, Any]:
         session_paths = SessionManager.list_for_cwd(Path(cwd))
+        capture("sessions_listed", {"session_count": len(session_paths)})
         return {
             "cwd": str(Path(cwd).resolve()),
             "sessions": [str(path) for path in session_paths],
@@ -133,7 +145,16 @@ def create_app() -> FastAPI:
                 session_source="web",
             )
         except Exception as exc:
+            capture_exception(exc)
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+        capture(
+            "chat_completed",
+            {
+                "has_model_override": request.model is not None,
+                "has_provider_override": request.provider is not None,
+                "load_extensions": request.load_extensions,
+            },
+        )
         return _serialize_prompt_result(result)
 
     @app.websocket("/ws")
@@ -158,6 +179,14 @@ def create_app() -> FastAPI:
                     env_overrides=request.env_overrides,
                     session_source="websocket",
                 )
+                capture(
+                    "websocket_chat_completed",
+                    {
+                        "has_model_override": request.model is not None,
+                        "has_provider_override": request.provider is not None,
+                        "load_extensions": request.load_extensions,
+                    },
+                )
                 await websocket.send_json(
                     {
                         "status": "ok",
@@ -168,6 +197,7 @@ def create_app() -> FastAPI:
         except WebSocketDisconnect:
             return
         except Exception as exc:
+            capture_exception(exc)
             await websocket.send_text(json.dumps({"status": "error", "error": str(exc)}))
             await websocket.close(code=1011)
 
